@@ -35,14 +35,3 @@ class AlertHistory(SQLModel, table=True):
     telegram_message_id: str | None = Field(default=None, description="Telegram message ID")
     status: str = Field(description="'sent' or 'failed'")
     error_message: str | None = Field(default=None, description="Error if failed")
-
-
-class ScheduledJob(SQLModel, table=True):
-    """Scheduled job model for tracking APScheduler jobs."""
-
-    id: int | None = Field(default=None, primary_key=True)
-    job_id: str = Field(description="APScheduler job ID")
-    job_type: str = Field(description="'regular_sweep' or 'mistake_sweep'")
-    last_run: datetime | None = Field(default=None, description="Last execution time")
-    next_run: datetime | None = Field(default=None, description="Next scheduled run")
-    status: str = Field(description="'active', 'paused', or 'failed'")
