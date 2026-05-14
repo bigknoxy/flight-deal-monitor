@@ -1,16 +1,11 @@
 """Test price analysis utilities."""
 
-import pytest
-from datetime import datetime, timedelta
 
 from app.utils import (
-    calculate_median_price,
     calculate_price_drop,
     detect_deal,
     generate_route_id,
-    has_recent_alert,
 )
-from app.models.flight import FlightDeal
 
 
 def test_calculate_price_drop():

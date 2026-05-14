@@ -3,7 +3,6 @@
 import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,7 +59,7 @@ async def calculate_median_price(
 def detect_deal(
     current_price: float,
     median_price: float,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Detect if a flight is a deal based on price thresholds."""
     if current_price >= median_price:
         return False, None

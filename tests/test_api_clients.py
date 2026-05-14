@@ -1,7 +1,8 @@
 """Test API clients."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from app.api import AmadeusClient, DuffelClient
 

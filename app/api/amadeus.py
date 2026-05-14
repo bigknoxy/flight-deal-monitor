@@ -1,7 +1,6 @@
 """Amadeus API client for flight search and pricing."""
 
 import logging
-from typing import List, Optional
 
 import httpx
 
@@ -22,8 +21,8 @@ class AmadeusClient:
             if self.env == "production"
             else "https://test.api.amadeus.com/v2"
         )
-        self.token: Optional[str] = None
-        self.token_expires_at: Optional[float] = None
+        self.token: str | None = None
+        self.token_expires_at: float | None = None
 
     async def _get_token(self) -> str:
         """Get OAuth token from Amadeus."""
@@ -58,7 +57,7 @@ class AmadeusClient:
         destination: str,
         departure_date: str,
         max_results: int = 10,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Search for flights using Amadeus API."""
         url = f"{self.base_url}/shopping/flight-offers"
         headers = {"Authorization": f"Bearer {await self._get_token()}"}
