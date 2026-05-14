@@ -10,6 +10,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AppConfig(BaseSettings):
     """Application configuration from YAML file."""
 
+    model_config = SettingsConfigDict(extra="allow")
+
     name: str = "flight-deal-monitor"
     version: str = "1.0.0"
 
