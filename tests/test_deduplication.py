@@ -1,15 +1,16 @@
 """Test deduplication utilities."""
 
-import pytest
 from datetime import datetime, timedelta
 
+import pytest
+
+from app.models.flight import FlightDeal
 from app.utils import (
     cleanup_expired_deals,
     generate_deal_hash,
     is_flight_seen_recently,
     mark_flight_seen,
 )
-from app.models.flight import FlightDeal
 
 
 def test_generate_deal_hash():
@@ -100,7 +101,7 @@ async def test_is_flight_seen_recently_false():
 @pytest.mark.asyncio
 async def test_cleanup_expired_deals():
     """Test cleanup of expired deals."""
-    from unittest.mock import AsyncMock, patch, MagicMock
+    from unittest.mock import AsyncMock, patch
 
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
         expired_deal = FlightDeal(

@@ -1,7 +1,6 @@
 """Telegram alert integration."""
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -21,7 +20,7 @@ class TelegramBot:
         self.alerts_sent_this_hour = 0
         self.last_hour_reset = None
 
-    async def send_alert(self, flight_deal: FlightDeal) -> Optional[str]:
+    async def send_alert(self, flight_deal: FlightDeal) -> str | None:
         """Send flight deal alert to Telegram."""
         # Rate limiting
         if self._is_rate_limited():

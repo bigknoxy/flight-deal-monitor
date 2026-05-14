@@ -1,22 +1,22 @@
 """Configuration management using Pydantic Settings."""
 
 import os
-from pathlib import Path
-from typing import List
 
+import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import yaml
 
 
 class AppConfig(BaseSettings):
     """Application configuration from YAML file."""
 
+    model_config = SettingsConfigDict(extra="allow")
+
     name: str = "flight-deal-monitor"
     version: str = "1.0.0"
 
-    home_airports: List[str] = Field(default_factory=lambda: ["MCI", "LAX", "JFK"])
-    destinations: List[str] = Field(
+    home_airports: list[str] = Field(default_factory=lambda: ["MCI", "LAX", "JFK"])
+    destinations: list[str] = Field(
         default_factory=lambda: ["LHR", "CDG", "NRT", "DXB", "SYD"]
     )
 
@@ -39,7 +39,7 @@ class AppConfig(BaseSettings):
         if not os.path.exists(path):
             return cls()
 
-        with open(path, "r") as f:
+        with open(path) as f:
             config_data = yaml.safe_load(f)
 
         return cls(**config_data.get("app", {}))

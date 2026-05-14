@@ -1,7 +1,7 @@
 """Database models."""
 
-from app.models.flight import FlightDeal, AlertHistory
-from app.models.job import ScheduledJob, JobRun
+from app.models.flight import AlertHistory, FlightDeal
+from app.models.job import JobRun, ScheduledJob
 
 __all__ = [
     "FlightDeal",

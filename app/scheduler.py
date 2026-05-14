@@ -1,15 +1,13 @@
 """APScheduler setup for background jobs."""
 
 import logging
-from datetime import datetime
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import config
-from app.database import engine
-from app.scheduler_jobs import run_regular_sweep, run_mistake_sweep
+from app.scheduler_jobs import run_mistake_sweep, run_regular_sweep
 
 logger = logging.getLogger(__name__)
 

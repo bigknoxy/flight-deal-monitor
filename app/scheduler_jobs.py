@@ -2,24 +2,22 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import List
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import AmadeusClient, DuffelClient
 from app.alert import telegram_bot
+from app.api import AmadeusClient, DuffelClient
 from app.config import config
 from app.database import AsyncSessionLocal
-from app.models.flight import FlightDeal, AlertHistory
+from app.models.flight import AlertHistory, FlightDeal
 from app.models.job import JobRun
+from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
 from app.utils.price_analysis import (
     calculate_median_price,
     calculate_price_drop,
     detect_deal,
     generate_route_id,
 )
-from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +151,7 @@ async def _scan_route(
     destination: str,
     departure_date: str,
     amadeus_priority: bool = True,
-) -> List[FlightDeal]:
+) -> list[FlightDeal]:
     """Scan a route for deals."""
     deals = []
     route_id = generate_route_id(origin, destination, departure_date, "")
