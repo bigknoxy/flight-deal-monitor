@@ -1,0 +1,74 @@
+"""Duffel API client for flight search (backup to Amadeus)."""
+
+import logging
+from typing import List, Optional
+
+import httpx
+
+from app.config import config
+
+logger = logging.getLogger(__name__)
+
+
+class DuffelClient:
+    """Duffel API client."""
+
+    def __init__(self):
+        self.api_token = config.env.duffel_api_token
+        self.base_url = "https://api.duffel.com"
+
+    async def search_flights(
+        self,
+        origin: str,
+        destination: str,
+        departure_date: str,
+        max_results: int = 10,
+    ) -> List[dict]:
+        """Search for flights using Duffel API."""
+        url = f"{self.base_url}/air/offer_requests"
+        headers = {
+            "Authorization": f"Bearer {self.api_token}",
+            "Duffel-Version": "v1",
+            "Content-Type": "application/json",
+        }
+
+        data = {
+            "data": {
+                "slices": [
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "departure_date": departure_date,
+                    }
+                ],
+                "passengers": [{"type": "adult"}],
+                "max_offers": max_results,
+            }
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            result = response.json()
+
+        offer_request_id = result["data"]["id"]
+
+        # Get offers
+        url = f"{self.base_url}/air/offer_requests/{offer_request_id}/offers"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+
+        offers = result.get("data", [])
+        logger.info(f"Found {len(offers)} offers from {origin} to {destination}")
+        return offers
+
+    async def get_flight_price(self, offer: dict) -> float:
+        """Extract price from Duffel offer."""
+        try:
+            price = float(offer["total_amount"])
+            return price
+        except (KeyError, TypeError, ValueError):
+            logger.warning(f"Could not extract price from offer: {offer}")
+            return 0.0
