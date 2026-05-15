@@ -1,6 +1,7 @@
 """Scheduler job implementations."""
 
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import List
 
@@ -11,6 +12,16 @@ from app.api import AmadeusClient, DuffelClient
 from app.alert import telegram_bot
 from app.config import config
 from app.database import AsyncSessionLocal
+from app.metrics import (
+    deals_detected_total,
+    DEAL_TYPE_FLASH_SALE,
+    DEAL_TYPE_MISTAKE_FARE,
+    errors_total,
+    COMPONENT_SCHEDULER,
+    job_duration_seconds,
+    telegram_alerts_sent_total,
+    telegram_alerts_failed_total,
+)
 from app.models.flight import FlightDeal, AlertHistory
 from app.models.job import JobRun
 from app.utils.price_analysis import (
@@ -28,6 +39,7 @@ async def run_regular_sweep() -> None:
     """Run regular flight price sweep."""
     logger.info("Starting regular flight price sweep")
     job_run = await _start_job_run("regular_sweep")
+    start_time = time.monotonic()
 
     try:
         deals_detected = 0
@@ -37,7 +49,7 @@ async def run_regular_sweep() -> None:
             for origin in config.app.home_airports:
                 for destination in config.app.destinations:
                     # Check dates for next 90 days
-                    for day_offset in range(0, config.app.look_ahead_days, 7):  # Weekly checks
+                    for day_offset in range(0, config.app.look_ahead_days, 7): # Weekly checks
                         departure_date = (
                             datetime.utcnow() + timedelta(days=day_offset)
                         ).strftime("%Y-%m-%d")
@@ -52,17 +64,23 @@ async def run_regular_sweep() -> None:
 
                         for deal in deals:
                             deals_detected += 1
+                            # Increment deals metric by type
+                            _label = DEAL_TYPE_MISTAKE_FARE if deal.deal_type == "mistake_fare" else DEAL_TYPE_FLASH_SALE
+                            deals_detected_total.labels(deal_type=_label).inc()
+
                             telegram_message_id = await telegram_bot.send_alert(deal)
 
                             # Record alert
                             if telegram_message_id:
                                 alerts_sent += 1
+                                telegram_alerts_sent_total.inc()
                                 alert = AlertHistory(
                                     flight_deal_id=deal.id,
                                     telegram_message_id=telegram_message_id,
                                     status="sent",
                                 )
                             else:
+                                telegram_alerts_failed_total.inc()
                                 alert = AlertHistory(
                                     flight_deal_id=deal.id,
                                     status="failed",
@@ -72,6 +90,9 @@ async def run_regular_sweep() -> None:
                             session.add(alert)
                             await session.commit()
 
+        duration = time.monotonic() - start_time
+        job_duration_seconds.labels(job_id="regular_sweep").observe(duration)
+
         await _complete_job_run(job_run, deals_detected, alerts_sent)
         logger.info(
             f"Regular sweep complete: {deals_detected} deals, {alerts_sent} alerts"
@@ -79,6 +100,7 @@ async def run_regular_sweep() -> None:
 
     except Exception as e:
         logger.error(f"Regular sweep failed: {e}")
+        errors_total.labels(component=COMPONENT_SCHEDULER).inc()
         await _fail_job_run(job_run, str(e))
 
 
@@ -86,6 +108,7 @@ async def run_mistake_sweep() -> None:
     """Run mistake fare sweep (higher priority, more frequent)."""
     logger.info("Starting mistake fare sweep")
     job_run = await _start_job_run("mistake_sweep")
+    start_time = time.monotonic()
 
     try:
         deals_detected = 0
@@ -118,16 +141,20 @@ async def run_mistake_sweep() -> None:
                     for deal in deals:
                         if deal.deal_type == "mistake_fare":
                             deals_detected += 1
+                            deals_detected_total.labels(deal_type=DEAL_TYPE_MISTAKE_FARE).inc()
+
                             telegram_message_id = await telegram_bot.send_alert(deal)
 
                             if telegram_message_id:
                                 alerts_sent += 1
+                                telegram_alerts_sent_total.inc()
                                 alert = AlertHistory(
                                     flight_deal_id=deal.id,
                                     telegram_message_id=telegram_message_id,
                                     status="sent",
                                 )
                             else:
+                                telegram_alerts_failed_total.inc()
                                 alert = AlertHistory(
                                     flight_deal_id=deal.id,
                                     status="failed",
@@ -137,6 +164,9 @@ async def run_mistake_sweep() -> None:
                             session.add(alert)
                             await session.commit()
 
+        duration = time.monotonic() - start_time
+        job_duration_seconds.labels(job_id="mistake_sweep").observe(duration)
+
         await _complete_job_run(job_run, deals_detected, alerts_sent)
         logger.info(
             f"Mistake fare sweep complete: {deals_detected} deals, {alerts_sent} alerts"
@@ -144,6 +174,7 @@ async def run_mistake_sweep() -> None:
 
     except Exception as e:
         logger.error(f"Mistake fare sweep failed: {e}")
+        errors_total.labels(component=COMPONENT_SCHEDULER).inc()
         await _fail_job_run(job_run, str(e))
 
 

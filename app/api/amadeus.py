@@ -1,11 +1,18 @@
 """Amadeus API client for flight search and pricing."""
 
 import logging
+import time
 from typing import List, Optional
 
 import httpx
 
 from app.config import config
+from app.metrics import (
+    api_calls_total,
+    PROVIDER_AMADEUS,
+    errors_total,
+    COMPONENT_AMADEUS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +35,6 @@ class AmadeusClient:
     async def _get_token(self) -> str:
         """Get OAuth token from Amadeus."""
         if self.token and self.token_expires_at:
-            import time
-
             if time.time() < self.token_expires_at - 60:  # 1 min buffer
                 return self.token
 
@@ -40,17 +45,20 @@ class AmadeusClient:
             "client_secret": self.client_secret,
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, data=data)
-            response.raise_for_status()
-            result = response.json()
+        try:
+            async with httpx.AsyncClient() as client:
+                api_calls_total.labels(provider=PROVIDER_AMADEUS).inc()
+                response = await client.post(url, data=data)
+                response.raise_for_status()
+                result = response.json()
 
-        self.token = result["access_token"]
-        import time
-
-        self.token_expires_at = time.time() + result["expires_in"]
-        logger.info("Obtained new Amadeus access token")
-        return self.token
+            self.token = result["access_token"]
+            self.token_expires_at = time.time() + result["expires_in"]
+            logger.info("Obtained new Amadeus access token")
+            return self.token
+        except Exception as e:
+            errors_total.labels(component=COMPONENT_AMADEUS).inc()
+            raise
 
     async def search_flights(
         self,
@@ -71,6 +79,7 @@ class AmadeusClient:
         }
 
         async with httpx.AsyncClient() as client:
+            api_calls_total.labels(provider=PROVIDER_AMADEUS).inc()
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
             result = response.json()

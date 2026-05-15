@@ -14,10 +14,9 @@ app:
     - "DXB"
     - "SYD"
 
-  search:
-    max_results_per_route: 10
-    look_ahead_days: 90
-    look_back_days: 30
+  max_results_per_route: 10
+  look_ahead_days: 90
+  look_back_days: 30
 
   flash_sale_threshold: 0.40
   mistake_fare_threshold: 0.30

@@ -4,11 +4,13 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.alert import telegram_bot
 from app.config import config
 from app.database import init_db, close_db
+from app.metrics import metrics_output
 from app.scheduler import start_scheduler, shutdown_scheduler, setup_jobs, get_scheduler_status
 
 # Configure logging
@@ -99,6 +101,17 @@ async def get_config():
             "log_level": config.env.log_level,
         },
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint.
+
+    Returns metrics in the Prometheus exposition format so that
+    Prometheus (or compatible scrapers) can collect them.
+    """
+    data, content_type = metrics_output()
+    return Response(content=data, media_type=content_type)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,12 @@ from typing import List, Optional
 import httpx
 
 from app.config import config
+from app.metrics import (
+    api_calls_total,
+    PROVIDER_DUFFEL,
+    errors_total,
+    COMPONENT_DUFFEL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,23 +52,29 @@ class DuffelClient:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, headers=headers, json=data)
-            response.raise_for_status()
-            result = response.json()
+        try:
+            async with httpx.AsyncClient() as client:
+                api_calls_total.labels(provider=PROVIDER_DUFFEL).inc()
+                response = await client.post(url, headers=headers, json=data)
+                response.raise_for_status()
+                result = response.json()
 
-        offer_request_id = result["data"]["id"]
+            offer_request_id = result["data"]["id"]
 
-        # Get offers
-        url = f"{self.base_url}/air/offer_requests/{offer_request_id}/offers"
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers)
-            response.raise_for_status()
-            result = response.json()
+            # Get offers
+            url = f"{self.base_url}/air/offer_requests/{offer_request_id}/offers"
+            async with httpx.AsyncClient() as client:
+                api_calls_total.labels(provider=PROVIDER_DUFFEL).inc()
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                result = response.json()
 
-        offers = result.get("data", [])
-        logger.info(f"Found {len(offers)} offers from {origin} to {destination}")
-        return offers
+            offers = result.get("data", [])
+            logger.info(f"Found {len(offers)} offers from {origin} to {destination}")
+            return offers
+        except Exception as e:
+            errors_total.labels(component=COMPONENT_DUFFEL).inc()
+            raise
 
     async def get_flight_price(self, offer: dict) -> float:
         """Extract price from Duffel offer."""
