@@ -1,0 +1,29 @@
+app:
+  name: "flight-deal-monitor"
+  version: "1.0.0"
+
+  home_airports:
+    - "MCI"
+    - "LAX"
+    - "JFK"
+
+  destinations:
+    - "LHR"
+    - "CDG"
+    - "NRT"
+    - "DXB"
+    - "SYD"
+
+  search:
+    max_results_per_route: 10
+    look_ahead_days: 90
+    look_back_days: 30
+
+  flash_sale_threshold: 0.40
+  mistake_fare_threshold: 0.30
+  min_price_usd: 100
+  max_alerts_per_hour: 10
+
+  regular_sweep_interval: 1800
+  mistake_sweep_interval: 900
+  job_coalesce: true

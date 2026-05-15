@@ -1,0 +1,110 @@
+"""Telegram alert integration."""
+
+import logging
+from typing import Optional
+
+import httpx
+
+from app.config import config
+from app.models.flight import FlightDeal
+
+logger = logging.getLogger(__name__)
+
+
+class TelegramBot:
+    """Telegram bot for sending alerts."""
+
+    def __init__(self):
+        self.bot_token = config.env.telegram_bot_token
+        self.chat_id = config.env.telegram_chat_id
+        self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
+        self.alerts_sent_this_hour = 0
+        self.last_hour_reset = None
+
+    async def send_alert(self, flight_deal: FlightDeal) -> Optional[str]:
+        """Send flight deal alert to Telegram."""
+        # Rate limiting
+        if self._is_rate_limited():
+            logger.warning("Rate limited: skipping alert")
+            return None
+
+        message = self._format_alert_message(flight_deal)
+
+        url = f"{self.base_url}/sendMessage"
+        params = {
+            "chat_id": self.chat_id,
+            "text": message,
+            "parse_mode": "MarkdownV2",
+            "disable_web_page_preview": False,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, params=params)
+                response.raise_for_status()
+                result = response.json()
+
+            self.alerts_sent_this_hour += 1
+            logger.info(f"Sent alert for {flight_deal.route_id}")
+            return str(result["result"]["message_id"])
+
+        except Exception as e:
+            logger.error(f"Failed to send alert: {e}")
+            return None
+
+    def _format_alert_message(self, flight_deal: FlightDeal) -> str:
+        """Format flight deal alert message."""
+        deal_emoji = "🚨" if flight_deal.deal_type == "mistake_fare" else "🔥"
+
+        message = f"""{deal_emoji} *Flight Deal Alert*
+
+*{flight_deal.deal_type.replace('_', ' ').title()}*
+
+📍 {flight_deal.origin} → {flight_deal.destination}
+📅 {flight_deal.departure_date}
+✈️ {flight_deal.airline}
+🎫 {flight_deal.flight_numbers}
+
+💰 ${flight_deal.original_price_usd:.2f} → ${flight_deal.current_price_usd:.2f}
+📉 {flight_deal.price_drop_percent:.1f}% OFF
+
+[Book Now]({flight_deal.booking_url})
+
+_Deal expires in 24 hours or when inventory runs out_"""
+
+        # Escape special characters for MarkdownV2
+        escape_chars = r"_*[]()~`>#+-=|{}.!"
+        for char in escape_chars:
+            message = message.replace(char, f"\\{char}")
+
+        return message
+
+    def _is_rate_limited(self) -> bool:
+        """Check if rate limit has been exceeded."""
+        import time
+
+        now = int(time.time() / 3600)  # Current hour
+
+        if self.last_hour_reset != now:
+            self.last_hour_reset = now
+            self.alerts_sent_this_hour = 0
+
+        return self.alerts_sent_this_hour >= config.app.max_alerts_per_hour
+
+    async def test_connection(self) -> bool:
+        """Test Telegram bot connection."""
+        url = f"{self.base_url}/getMe"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                result = response.json()
+                logger.info(f"Connected as @{result['result']['username']}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to connect to Telegram: {e}")
+            return False
+
+
+# Global bot instance
+telegram_bot = TelegramBot()
