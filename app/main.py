@@ -1,42 +1,77 @@
 """FastAPI application entry point."""
 
-import logging
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+import structlog
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 
 from app.alert import telegram_bot
 from app.config import config
 from app.database import init_db, close_db
+from app.logging_config import configure_logging, request_id, correlation_id, clear_context
 from app.scheduler import start_scheduler, shutdown_scheduler, setup_jobs, get_scheduler_status
 
-# Configure logging
-logging.basicConfig(
-    level=config.env.log_level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# Configure structured JSON logging
+configure_logging(
+    log_level=config.env.log_level,
+    log_format=config.env.log_format,
 )
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
+
+
+class RequestIdMiddleware:
+    """ASGI middleware that assigns a request_id and correlation_id
+    to every incoming HTTP request and ensures they appear in all log entries.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        req_id = str(uuid.uuid4())[:12]
+        corr_id = correlation_id.get() or str(uuid.uuid4())[:16]
+        request_id.set(req_id)
+        correlation_id.set(corr_id)
+
+        # Inject request_id into response headers for client-side tracing
+        async def send_with_header(message):
+            if message["type"] == "http.response.start":
+                headers = dict(message.get("headers", []))
+                headers[b"x-request-id"] = req_id.encode()
+                headers[b"x-correlation-id"] = corr_id.encode()
+                message["headers"] = list(headers.items())
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_header)
+        finally:
+            clear_context()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
-    logger.info("Starting flight deal monitor...")
+    logger.info("starting_flight_deal_monitor")
     await init_db()
     await telegram_bot.test_connection()
     setup_jobs()
     start_scheduler()
-    logger.info("Flight deal monitor started successfully")
+    logger.info("flight_deal_monitor_started")
 
     yield
 
     # Shutdown
-    logger.info("Shutting down flight deal monitor...")
+    logger.info("shutting_down_flight_deal_monitor")
     shutdown_scheduler()
     await close_db()
-    logger.info("Flight deal monitor shutdown complete")
+    logger.info("flight_deal_monitor_shutdown_complete")
 
 
 # Create FastAPI app
@@ -46,6 +81,9 @@ app = FastAPI(
     version=config.app.version,
     lifespan=lifespan,
 )
+
+# Add request ID middleware
+app.add_middleware(RequestIdMiddleware)
 
 
 class HealthResponse(BaseModel):
@@ -58,8 +96,9 @@ class HealthResponse(BaseModel):
 
 
 @app.get("/", response_model=dict)
-async def root():
+async def root(request: Request):
     """Root endpoint."""
+    logger.info("root_endpoint_accessed")
     return {
         "name": config.app.name,
         "version": config.app.version,
@@ -71,6 +110,12 @@ async def root():
 async def health():
     """Health check endpoint."""
     scheduler_status = get_scheduler_status()
+
+    logger.info(
+        "health_check",
+        status="healthy" if scheduler_status["running"] else "unhealthy",
+        job_count=scheduler_status["job_count"],
+    )
 
     return HealthResponse(
         status="healthy" if scheduler_status["running"] else "unhealthy",
@@ -97,6 +142,7 @@ async def get_config():
         "env": {
             "amadeus_env": config.env.amadeus_env,
             "log_level": config.env.log_level,
+            "log_format": config.env.log_format,
         },
     }
 

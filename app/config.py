@@ -71,6 +71,7 @@ class EnvConfig(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+    log_format: str = "json"  # "json" for production, "console" for dev
 
     @field_validator("amadeus_env")
     @classmethod
@@ -88,6 +89,15 @@ class EnvConfig(BaseSettings):
         if v.upper() not in valid_levels:
             raise ValueError(f"log_level must be one of {valid_levels}")
         return v.upper()
+
+    @field_validator("log_format")
+    @classmethod
+    def validate_log_format(cls, v: str) -> str:
+        """Validate log format."""
+        valid_formats = ["json", "console"]
+        if v.lower() not in valid_formats:
+            raise ValueError(f"log_format must be one of {valid_formats}")
+        return v.lower()
 
 
 class Config:
