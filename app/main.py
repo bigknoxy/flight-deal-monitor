@@ -9,9 +9,9 @@ from pydantic import BaseModel
 
 from app.alert import telegram_bot
 from app.config import config
-from app.database import init_db, close_db
-from app.logging_config import configure_logging, request_id, correlation_id, clear_context
-from app.scheduler import start_scheduler, shutdown_scheduler, setup_jobs, get_scheduler_status
+from app.database import close_db, init_db
+from app.logging_config import clear_context, configure_logging, correlation_id, request_id
+from app.scheduler import get_scheduler_status, setup_jobs, shutdown_scheduler, start_scheduler
 
 # Configure structured JSON logging
 configure_logging(

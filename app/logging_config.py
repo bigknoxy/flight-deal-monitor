@@ -17,16 +17,17 @@ import contextvars
 import logging
 import sys
 import uuid
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 
-
 # Context variables for correlation / request tracking across async boundaries
-correlation_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+correlation_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "correlation_id", default=None
 )
-request_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_id", default=None
 )
 
@@ -79,9 +80,7 @@ def _timestamp_in_iso8601(
     logger: Any, method_name: str, event_dict: structlog.types.EventDict
 ) -> structlog.types.EventDict:
     """Add an ISO-8601 timestamp field (replaces structlog's default epoch format)."""
-    import datetime
-
-    event_dict["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    event_dict["timestamp"] = datetime.now(UTC).isoformat()
     return event_dict
 
 

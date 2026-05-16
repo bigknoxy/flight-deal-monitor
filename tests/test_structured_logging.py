@@ -4,23 +4,22 @@ import logging
 import os
 import sys
 
-import pytest
 import structlog
 
 # Ensure project root is on sys.path so `app` is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.logging_config import (
-    configure_logging,
-    correlation_id,
-    request_id,
-    new_correlation_id,
-    new_request_id,
-    clear_context,
+    CorrelationIDFilter,
     _add_context_vars,
     _rename_event_to_message,
     _rename_logger_to_name,
-    CorrelationIDFilter,
+    clear_context,
+    configure_logging,
+    correlation_id,
+    new_correlation_id,
+    new_request_id,
+    request_id,
 )
 
 
