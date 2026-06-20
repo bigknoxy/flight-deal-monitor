@@ -3,12 +3,13 @@ Google Flights browser-based scraper for free flight data.
 Uses curl with proper headers to mimic browser requests.
 """
 import json
+from typing import Any
 
 
 class GoogleFlightsBrowserScraper:
     """Scrape Google Flights using curl with browser headers."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.base_url = "https://www.google.com/_/FlightsFrontendUi/data/"
         self.session_cookie = None
 
@@ -33,7 +34,7 @@ class GoogleFlightsBrowserScraper:
         except Exception as e:
             return {"flights": [], "total": 0, "error": str(e)}
 
-    def _search_with_fli(self, origin, destination, dep_date, ret_date, max_results):
+    def _search_with_fli(self, origin: str, destination: str, dep_date: str, ret_date: str | None, max_results: int = 10) -> dict:
         """Use the installed fli package for encoding and request."""
         import sys
 
@@ -97,7 +98,7 @@ class GoogleFlightsBrowserScraper:
         except Exception as e:
             return {"flights": [], "total": 0, "error": str(e)}
 
-    def _result_to_dict(self, result) -> dict:
+    def _result_to_dict(self, result: Any) -> dict:
         """Convert a FlightResult to a dictionary."""
         flight_data = {
             "airline": result.airline.name

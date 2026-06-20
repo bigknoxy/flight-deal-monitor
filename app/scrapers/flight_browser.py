@@ -9,7 +9,7 @@ import subprocess
 class FlightBrowserScraper:
     """Use agent-browser CLI to scrape Google Flights."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.base_url = "https://www.google.com/travel/flights"
 
     def search(

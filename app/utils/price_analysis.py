@@ -38,7 +38,7 @@ async def calculate_median_price(
     )
 
     result = await session.execute(query)
-    prices = [row[0] for row in result.all()]
+    prices: list[float] = [row[0] for row in result.all()]
 
     if not prices:
         logger.warning(f"No price history for {origin}->{destination}, using default")

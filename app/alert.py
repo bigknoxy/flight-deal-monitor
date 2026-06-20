@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class TelegramBot:
     """Telegram bot for sending alerts."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.bot_token = config.env.telegram_bot_token
         self.chat_id = config.env.telegram_chat_id
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
@@ -88,7 +88,7 @@ _Deal expires in 24 hours or when inventory runs out_"""
             self.last_hour_reset = now
             self.alerts_sent_this_hour = 0
 
-        return self.alerts_sent_this_hour >= config.app.max_alerts_per_hour
+        return bool(self.alerts_sent_this_hour >= config.app.max_alerts_per_hour)
 
     async def test_connection(self) -> bool:
         """Test Telegram bot connection."""

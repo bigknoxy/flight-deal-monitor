@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class DuffelClient:
     """Duffel API client."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_token = config.env.duffel_api_token
         self.base_url = "https://api.duffel.com"
 
@@ -59,7 +59,7 @@ class DuffelClient:
             response.raise_for_status()
             result = response.json()
 
-        offers = result.get("data", [])
+        offers: list[dict] = result.get("data", [])
         logger.info(f"Found {len(offers)} offers from {origin} to {destination}")
         return offers
 
