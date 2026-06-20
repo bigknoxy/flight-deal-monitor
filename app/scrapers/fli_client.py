@@ -1,12 +1,15 @@
 """Wrapper around the fli library for flight search."""
+import logging
 import sys
-
-sys.path.insert(0, "/root/.local/pipx/venvs/flights/lib/python3.11/site-packages")  # noqa: E402
 from typing import Any
-import logging  # noqa: E402
 
-from fli.models import Airport, FlightSearchFilters, FlightSegment, PassengerInfo  # noqa: E402
-from fli.search import SearchFlights  # noqa: E402
+try:
+    from fli.models import Airport, FlightSearchFilters, FlightSegment, PassengerInfo
+    from fli.search import SearchFlights
+except ImportError:
+    sys.path.insert(0, "/root/.local/pipx/venvs/flights/lib/python3.11/site-packages")
+    from fli.models import Airport, FlightSearchFilters, FlightSegment, PassengerInfo
+    from fli.search import SearchFlights
 
 logger = logging.getLogger(__name__)
 
