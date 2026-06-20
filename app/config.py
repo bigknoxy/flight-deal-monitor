@@ -1,17 +1,15 @@
 """Configuration management using Pydantic Settings."""
 
 import os
-from pathlib import Path
-from typing import List
 
+import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import yaml
-from typing import Dict, List
 
 
 class DealThresholds(BaseSettings):
     """Deal detection thresholds."""
+
     mistake_fare_percent: float = 0.70
     flash_sale_percent: float = 0.50
     deep_flash_percent: float = 0.65
@@ -19,6 +17,7 @@ class DealThresholds(BaseSettings):
 
 class RouteMultipliers(BaseSettings):
     """Route volatility multipliers."""
+
     domestic: float = 1.0
     transatlantic: float = 0.8
     transpacific: float = 0.7
@@ -32,10 +31,27 @@ class AppConfig(BaseSettings):
     name: str = "flight-deal-monitor"
     version: str = "1.0.0"
 
-    home_airports: List[str] = Field(default_factory=lambda: ["MCI"])
-    destinations: List[str] = Field(
-        default_factory=lambda: ["JFK", "LGA", "EWR", "BOS", "PWM", "ONT", "SBA", "PLS", "SJO", "AUS",
-                                  "DUB", "BCN", "LTN", "EDI", "OSL", "TYO", "ICN"]
+    home_airports: list[str] = Field(default_factory=lambda: ["MCI"])
+    destinations: list[str] = Field(
+        default_factory=lambda: [
+            "JFK",
+            "LGA",
+            "EWR",
+            "BOS",
+            "PWM",
+            "ONT",
+            "SBA",
+            "PLS",
+            "SJO",
+            "AUS",
+            "DUB",
+            "BCN",
+            "LTN",
+            "EDI",
+            "OSL",
+            "TYO",
+            "ICN",
+        ]
     )
 
     deal_thresholds: DealThresholds = DealThresholds()
@@ -61,7 +77,7 @@ class AppConfig(BaseSettings):
         if not os.path.exists(path):
             return cls()
 
-        with open(path, "r") as f:
+        with open(path) as f:
             config_data = yaml.safe_load(f)
 
         return cls(**config_data.get("app", {}))

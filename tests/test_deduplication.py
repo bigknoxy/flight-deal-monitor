@@ -1,16 +1,17 @@
 """Test deduplication utilities."""
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from app.models.flight import FlightDeal
 from app.utils import (
     cleanup_expired_deals,
     generate_deal_hash,
     is_flight_seen_recently,
     mark_flight_seen,
 )
-from app.models.flight import FlightDeal
 
 
 def test_generate_deal_hash():
@@ -31,7 +32,7 @@ async def test_mark_flight_seen():
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
         mock_session_cls.return_value = mock_session
-        
+
         deal = FlightDeal(
             route_id="test_route",
             origin="MCI",
@@ -58,7 +59,7 @@ async def test_is_flight_seen_recently_true():
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
         mock_session = AsyncMock()
         mock_session_cls.return_value = mock_session
-        
+
         mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = FlightDeal(
             route_id="test_route",
@@ -89,7 +90,7 @@ async def test_is_flight_seen_recently_false():
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
         mock_session = AsyncMock()
         mock_session_cls.return_value = mock_session
-        
+
         mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None
 
@@ -106,7 +107,7 @@ async def test_cleanup_expired_deals():
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
         mock_session = AsyncMock()
         mock_session_cls.return_value = mock_session
-        
+
         expired_deal = FlightDeal(
             route_id="expired_route",
             origin="MCI",
@@ -124,10 +125,10 @@ async def test_cleanup_expired_deals():
 
         mock_scalars_result = AsyncMock()
         mock_scalars_result.all.return_value = [expired_deal]
-        
+
         mock_result = MagicMock()
         mock_result.scalars.return_value = mock_scalars_result
-        
+
         mock_session.execute.return_value = mock_result
 
         count = await cleanup_expired_deals(mock_session)

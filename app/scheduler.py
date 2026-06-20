@@ -1,22 +1,22 @@
 """APScheduler setup for background jobs."""
 
 import logging
-from datetime import datetime
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import config
-from app.database import engine
-from app.scheduler_jobs import run_regular_sweep, run_mistake_sweep
+from app.scheduler_jobs import run_mistake_sweep, run_regular_sweep
 
 logger = logging.getLogger(__name__)
 
 
 # Job store for persistence
 jobstores = {
-    "default": SQLAlchemyJobStore(url=config.env.database_url.replace("sqlite://", "sqlite:///"))
+    "default": SQLAlchemyJobStore(
+        url=config.env.database_url.replace("sqlite://", "sqlite:///")
+    )
 }
 
 # Executor
@@ -63,7 +63,9 @@ def get_scheduler_status() -> dict:
             {
                 "id": job.id,
                 "name": job.name,
-                "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+                "next_run": job.next_run_time.isoformat()
+                if job.next_run_time
+                else None,
             }
             for job in scheduler.get_jobs()
         ],

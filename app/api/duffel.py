@@ -1,7 +1,6 @@
 """Duffel API client for flight search (backup to Amadeus)."""
 
 import logging
-from typing import List, Optional
 
 import httpx
 
@@ -23,7 +22,7 @@ class DuffelClient:
         destination: str,
         departure_date: str,
         max_results: int = 10,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Search for flights using Duffel API."""
         url = f"{self.base_url}/air/offer_requests"
         headers = {

@@ -1,7 +1,8 @@
 """Test API clients."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.api import AmadeusClient, DuffelClient
 
@@ -41,6 +42,7 @@ async def test_amadeus_get_token(amadeus_client):
 @pytest.mark.asyncio
 async def test_amadeus_search_flights(amadeus_client):
     """Test Amadeus flight search."""
+
     async def mock_get_token():
         return "test_token"
 
@@ -54,21 +56,15 @@ async def test_amadeus_search_flights(amadeus_client):
                         "price": {"total": "100.00"},
                         "validatingAirlineCodes": ["BA"],
                         "itineraries": [
-                            {
-                                "segments": [
-                                    {"flight": {"number": "BA123"}}
-                                ]
-                            }
-                        ]
+                            {"segments": [{"flight": {"number": "BA123"}}]}
+                        ],
                     }
                 ]
             }
             mock_client.get.return_value = mock_response
             mock_client_class.return_value.__aenter__.return_value = mock_client
 
-            flights = await amadeus_client.search_flights(
-                "MCI", "LHR", "2024-06-01"
-            )
+            flights = await amadeus_client.search_flights("MCI", "LHR", "2024-06-01")
 
             assert len(flights) == 1
             assert flights[0]["price"]["total"] == "100.00"

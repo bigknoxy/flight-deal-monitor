@@ -4,24 +4,23 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import AmadeusClient, DuffelClient, SearchAPIClient
-from app.scrapers.fli_client import FLIClient
-from app.cache import price_cache
 from app.alert import telegram_bot
+from app.api import AmadeusClient, DuffelClient, SearchAPIClient
+from app.cache import price_cache
 from app.config import config
 from app.database import AsyncSessionLocal
-from app.models.flight import FlightDeal, AlertHistory
+from app.models.flight import AlertHistory, FlightDeal
 from app.models.job import JobRun
+from app.scrapers.fli_client import FLIClient
+from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
 from app.utils.price_analysis import (
     calculate_median_price,
     calculate_price_drop,
     detect_deal,
     generate_route_id,
 )
-from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,9 @@ async def run_regular_sweep() -> None:
             for origin in config.app.home_airports:
                 for destination in config.app.destinations:
                     # Check dates for next 90 days
-                    for day_offset in range(0, config.app.look_ahead_days, 7):  # Weekly checks
+                    for day_offset in range(
+                        0, config.app.look_ahead_days, 7
+                    ):  # Weekly checks
                         departure_date = (
                             datetime.utcnow() + timedelta(days=day_offset)
                         ).strftime("%Y-%m-%d")
@@ -185,13 +186,19 @@ async def _scan_route(
         # Try fli first (FREE - Google Flights via curl_cffi)
         fli_client = FLIClient()
         flights = await asyncio.get_event_loop().run_in_executor(
-            None, fli_client.search_flights, origin, destination, departure_date, None, config.app.max_results_per_route
+            None,
+            fli_client.search_flights,
+            origin,
+            destination,
+            departure_date,
+            None,
+            config.app.max_results_per_route,
         )
         if flights:
             logger.info(f"fli returned {len(flights)} flights (FREE)")
     except Exception as e:
         logger.warning(f"fli search failed: {e}")
-    
+
     if not flights:
         try:
             # SearchAPI ($4/1K)
@@ -206,14 +213,20 @@ async def _scan_route(
             try:
                 amadeus = AmadeusClient()
                 flights = await amadeus.search_flights(
-                    origin, destination, departure_date, config.app.max_results_per_route
+                    origin,
+                    destination,
+                    departure_date,
+                    config.app.max_results_per_route,
                 )
             except Exception as e2:
                 logger.warning(f"Amadeus search failed: {e2}")
                 try:
                     duffel = DuffelClient()
                     flights = await duffel.search_flights(
-                        origin, destination, departure_date, config.app.max_results_per_route
+                        origin,
+                        destination,
+                        departure_date,
+                        config.app.max_results_per_route,
                     )
                 except Exception as e3:
                     logger.error(f"Duffel search also failed: {e3}")
@@ -224,10 +237,15 @@ async def _scan_route(
         try:
             airline = flight.get("validatingAirlineCodes", ["Unknown"])[0]
             flight_numbers = ",".join(
-                [seg.get("flight", {}).get("number", "") for seg in flight.get("itineraries", [{}])[0].get("segments", [])]
+                [
+                    seg.get("flight", {}).get("number", "")
+                    for seg in flight.get("itineraries", [{}])[0].get("segments", [])
+                ]
             )
             price = float(flight.get("price", {}).get("total", 0))
-            booking_url = flight.get("booking_url", "https://www.google.com/travel/flights")
+            booking_url = flight.get(
+                "booking_url", "https://www.google.com/travel/flights"
+            )
 
             if price < config.app.min_price_usd:
                 continue
@@ -263,7 +281,9 @@ async def _scan_route(
             continue
 
     if flights:
-        await price_cache.set_cached_route_data(origin, destination, departure_date, flights)
+        await price_cache.set_cached_route_data(
+            origin, destination, departure_date, flights
+        )
         lowest_price = min(
             float(f.get("price", {}).get("total", float("inf"))) for f in flights
         )
@@ -292,8 +312,8 @@ async def _complete_job_run(
     """Complete a job run record."""
     job_run.completed_at = datetime.utcnow()
     job_run.duration_seconds = (
-        (job_run.completed_at - job_run.started_at).total_seconds()
-    )
+        job_run.completed_at - job_run.started_at
+    ).total_seconds()
     job_run.status = "success"
     job_run.deals_detected = deals_detected
     job_run.alerts_sent = alerts_sent
@@ -307,8 +327,8 @@ async def _fail_job_run(job_run: JobRun, error_message: str) -> None:
     """Fail a job run record."""
     job_run.completed_at = datetime.utcnow()
     job_run.duration_seconds = (
-        (job_run.completed_at - job_run.started_at).total_seconds()
-    )
+        job_run.completed_at - job_run.started_at
+    ).total_seconds()
     job_run.status = "failed"
     job_run.error_message = error_message
 

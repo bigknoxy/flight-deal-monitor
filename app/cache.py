@@ -1,6 +1,6 @@
 import time
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 
 class TTLCache:
@@ -8,7 +8,7 @@ class TTLCache:
         self._cache: dict[str, tuple[Any, float]] = {}
         self._ttl = ttl_seconds
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         if key not in self._cache:
             return None
         value, timestamp = self._cache[key]
@@ -30,7 +30,7 @@ class PriceCache:
 
     async def get_cached_route_data(
         self, origin: str, destination: str, departure_date: str
-    ) -> Optional[tuple[list[dict], datetime]]:
+    ) -> tuple[list[dict], datetime] | None:
         key = f"{origin}:{destination}:{departure_date}"
         data = self._cache.get(key)
         if data is None:
