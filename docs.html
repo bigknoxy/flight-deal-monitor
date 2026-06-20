@@ -2,199 +2,227 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Flight Deal Monitor - Documentation</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+        :root {
+            --bg: #0a0a0a;
+            --card-bg: #161616;
+            --border: #2a2a2a;
+            --text: #e5e5e5;
+            --muted: #8a8a8a;
+            --accent: #00d4ff;
+            --blue: #2563eb;
+            --amber: #f59e0b;
+            --purple: #a855f7;
+            --red: #ff7b72;
         }
         
+        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            color: #1a1a1a;
-            background-color: #f5f5f5;
-            padding: 20px;
+            margin: 0;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: env(safe-area-inset);
         }
         
         .container {
-            max-width: 1200px;
+            min-height: 100vh;
+            padding: 20px 16px;
+            max-width: 500px;
             margin: 0 auto;
-            background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        @media (min-width: 768px) {
+            .container { max-width: 1200px; padding: 40px; }
         }
         
         header {
-            border-bottom: 2px solid #e5e5e5;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
+            text-align: center;
+            margin-bottom: 24px;
         }
         
         nav {
             display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         
         nav a {
+            flex: 1;
+            min-width: 70px;
             text-decoration: none;
-            color: #2563eb;
+            color: var(--text);
+            padding: 6px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            font-size: 0.75rem;
             font-weight: 500;
-            padding: 8px 16px;
-            border-radius: 4px;
-            transition: background 0.2s;
+            transition: all 0.2s;
+            text-align: center;
         }
         
         nav a:hover {
-            background: #eff6ff;
+            background: var(--card-bg);
+            border-color: var(--accent);
         }
         
         nav a.active {
-            background: #2563eb;
-            color: white;
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent);
         }
         
         h1 {
-            color: #1e40af;
-            margin-bottom: 10px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+            background: linear-gradient(90deg, var(--accent), var(--blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        @media (min-width: 768px) {
+            h1 { font-size: 2rem; }
+        }
+        
+        section {
+            margin-bottom: 24px;
+        }
+        
+        @media (min-width: 768px) {
+            section { margin-bottom: 32px; }
         }
         
         h2 {
-            color: #1e3a8a;
-            margin: 30px 0 15px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e5e5e5;
+            font-size: 1.1rem;
+            margin: 0 0 12px;
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        @media (min-width: 768px) {
+            h2 { font-size: 1.4rem; }
         }
         
         h3 {
-            color: #3730a3;
-            margin: 20px 0 10px;
+            font-size: 0.95rem;
+            color: var(--text);
+            margin: 16px 0 8px;
+            font-weight: 600;
         }
         
         .code-block {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 15px;
-            border-radius: 6px;
-            font-family: 'Fira Code', 'Monaco', monospace;
-            font-size: 13px;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 11px;
             overflow-x: auto;
-            margin: 15px 0;
+            margin: 12px 0;
+            border: 1px solid var(--border);
+            white-space: pre-wrap;
+            word-break: break-word;
         }
         
-        .code-block .comment {
-            color: #8b949e;
+        @media (min-width: 768px) {
+            .code-block { font-size: 13px; padding: 16px; white-space: pre; }
         }
         
-        .tip-box, .warning-box, .info-box {
-            padding: 15px;
-            border-radius: 6px;
-            margin: 15px 0;
+        .code-block .comment { color: #8b949e; }
+        
+        .box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
         }
         
-        .tip-box {
-            background: #e0f2fe;
-            border-left: 4px solid #0ea5e9;
+        .tip {
+            border-left: 3px solid var(--accent);
         }
         
-        .warning-box {
-            background: #fef3c7;
-            border-left: 4px solid #f59e0b;
+        .warning {
+            border-left: 3px solid var(--amber);
         }
         
-        .info-box {
-            background: #ede9fe;
-            border-left: 4px solid #8b5cf6;
-        }
-        
-        ul {
-            margin-left: 20px;
-            margin-bottom: 15px;
-        }
-        
-        li {
-            margin-bottom: 8px;
+        .info {
+            border-left: 3px solid var(--purple);
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
+            margin: 12px 0;
+            font-size: 0.8rem;
+        }
+        
+        @media (min-width: 768px) {
+            table { font-size: 0.9rem; }
         }
         
         th, td {
-            padding: 12px;
+            padding: 10px 8px;
             text-align: left;
-            border-bottom: 1px solid #e5e5e5;
+            border-bottom: 1px solid var(--border);
         }
         
         th {
-            background: #f9fafb;
+            background: var(--card-bg);
             font-weight: 600;
-            color: #374151;
+            color: var(--accent);
         }
         
         tr:hover {
-            background: #f9fafb;
+            background: rgba(0, 212, 255, 0.05);
         }
         
-        .steps {
-            counter-reset: step-counter;
+        ul {
+            margin: 8px 0 8px 16px;
+            padding: 0;
         }
         
-        .step {
-            counter-increment: step-counter;
-            margin-bottom: 20px;
-            padding-left: 50px;
-            position: relative;
+        li {
+            margin-bottom: 6px;
+            font-size: 0.85rem;
         }
         
-        .step::before {
-            content: counter(step-counter);
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 30px;
-            height: 30px;
-            background: #2563eb;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
+        footer {
+            text-align: center;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            margin-top: 24px;
         }
         
-        .endpoint {
-            background: #f3f4f6;
-            padding: 15px;
-            border-radius: 6px;
-            margin: 10px 0;
-            border: 1px solid #d1d5e0;
+        footer p {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin: 0;
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+            margin: 0 8px;
         }
         
         .method {
             display: inline-block;
-            padding: 4px 8px;
+            padding: 2px 6px;
             border-radius: 4px;
             font-weight: bold;
-            font-size: 12px;
-            margin-right: 8px;
-            background: #2563eb;
-            color: white;
-        }
-        
-        .metric {
-            display: inline-block;
-            background: #dbeafe;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 13px;
-            margin: 2px;
+            font-size: 0.75rem;
+            background: var(--accent);
+            color: var(--bg);
+            margin-right: 6px;
         }
     </style>
 </head>
@@ -202,335 +230,79 @@
     <div class="container">
         <header>
             <nav>
-                <a href="README.md">README</a>
-                <a href="ARCHITECTURE.html">ARCHITECTURE</a>
-                <a href="docs.html" class="active">DOCUMENTATION</a>
+                <a href="index.html">HOME</a>
+                <a href="ARCHITECTURE.html">ARCH</a>
+                <a href="docs.html" class="active">DOCS</a>
             </nav>
-            <h1>📚 Flight Deal Monitor Documentation</h1>
+            <h1>📚 Documentation</h1>
         </header>
 
         <section>
-            <h2>Installation Instructions</h2>
+            <h2>Quick Install</h2>
+            <div class="code-block"><span class="comment"># Clone and install</span>
+git clone https://github.com/bigknoxy/flight-deal-monitor.git
+cd flight-deal-monitor
+pip install -r requirements.txt</div>
             
-            <div class="steps">
-                <div class="step">
-                    <h3>Clone Repository</h3>
-                    <div class="code-block">git clone https://github.com/bigknoxy/flight-deal-monitor.git
-cd flight-deal-monitor</div>
-                </div>
-                
-                <div class="step">
-                    <h3>Install Dependencies</h3>
-                    <div class="code-block">pip install -r requirements.txt</div>
-                    <p>Or with pipx (recommended for fli):</p>
-                    <div class="code-block">pip install pipx
-pipx install fli</div>
-                </div>
-                
-                <div class="step">
-                    <h3>Configure Environment</h3>
-                    <div class="code-block">cp config/.env.example .env
-# Edit .env with your credentials</div>
-                    <div class="info-box">
-                        <strong>Required Variables:</strong>
-                        <ul>
-                            <li><code>SEARCHAPI_API_KEY</code> - Get from <a href="https://searchapi.io">searchapi.io</a></li>
-                            <li><code>TELEGRAM_BOT_TOKEN</code> - Create via @BotFather</li>
-                            <li><code>TELEGRAM_CHAT_ID</code> - Your Telegram chat ID</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <div class="step">
-                    <h3>Start Application</h3>
-                    <div class="code-block">python -m app.main</div>
-                    <p>Application will be available at <code>http://localhost:8000</code></p>
-                </div>
+            <div class="code-block"><span class="comment"># Configure (required)</span>
+cp config/.env.example .env
+<span class="comment"># Add SEARCHAPI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID</span></div>
+            
+            <div class="box warning">
+                <strong>fli note:</strong> Free but rate-limited. SearchAPI ($4/1K) recommended for reliability.
             </div>
         </section>
 
         <section>
-            <h2>Configuration Guide</h2>
-            
-            <h3>Environment Variables (.env)</h3>
+            <h2>Environment Variables</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>Variable</th>
-                        <th>Description</th>
-                        <th>Required</th>
-                        <th>Default</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><code>SEARCHAPI_API_KEY</code></td>
-                        <td>Google Flights API key</td>
-                        <td>Yes (for reliable results)</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td><code>TELEGRAM_BOT_TOKEN</code></td>
-                        <td>Telegram bot token</td>
-                        <td>Yes</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td><code>TELEGRAM_CHAT_ID</code></td>
-                        <td>Telegram chat/group ID</td>
-                        <td>Yes</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td><code>DUFFEL_API_TOKEN</code></td>
-                        <td>Duffel API backup token</td>
-                        <td>Optional</td>
-                        <td>-</td>
-                    </tr>
-                    <tr>
-                        <td><code>DATABASE_URL</code></td>
-                        <td>Database connection string</td>
-                        <td>No</td>
-                        <td>sqlite:///./flight_deals.db</td>
-                    </tr>
-                    <tr>
-                        <td><code>LOG_LEVEL</code></td>
-                        <td>Logging verbosity</td>
-                        <td>No</td>
-                        <td>INFO</td>
-                    </tr>
-                </tbody>
+                <tr><th>Variable</th><th>Required</th></tr>
+                <tr><td>SEARCHAPI_API_KEY</td><td>Yes (reliable fallback)</td></tr>
+                <tr><td>TELEGRAM_BOT_TOKEN</td><td>Yes</td></tr>
+                <tr><td>TELEGRAM_CHAT_ID</td><td>Yes</td></tr>
+                <tr><td>DUFFEL_API_TOKEN</td><td>Optional backup</td></tr>
             </table>
-
-            <h3>App Configuration (config/app.yaml)</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Parameter</th>
-                        <th>Description</th>
-                        <th>Default</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><code>home_airports</code></td>
-                        <td>List of departure airports (IATA codes)</td>
-                        <td>["MCI"]</td>
-                    </tr>
-                    <tr>
-                        <td><code>destinations</code></td>
-                        <td>List of destination airports (IATA codes)</td>
-                        <td>Multiple international airports</td>
-                    </tr>
-                    <tr>
-                        <td><code>mistake_fare_threshold</code></td>
-                        <td>≥70% below median = mistake fare</td>
-                        <td>0.70</td>
-                    </tr>
-                    <tr>
-                        <td><code>flash_sale_threshold</code></td>
-                        <td>≥50% below median = flash sale</td>
-                        <td>0.50</td>
-                    </tr>
-                    <tr>
-                        <td><code>cache_ttl_minutes</code></td>
-                        <td>Price cache TTL in minutes</td>
-                        <td>360 (6 hours)</td>
-                    </tr>
-                    <tr>
-                        <td><code>regular_sweep_interval</code></td>
-                        <td>Regular sweep interval in seconds</td>
-                        <td>1800 (30 min)</td>
-                    </tr>
-                    <tr>
-                        <td><code>mistake_sweep_interval</code></td>
-                        <td>Mistake fare sweep interval in seconds</td>
-                        <td>900 (15 min)</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div class="warning-box">
-                <strong>Note:</strong> The fli library works intermittently as Google actively blocks repeated API requests. 
-                SearchAPI is recommended as the reliable fallback.
-            </div>
         </section>
 
         <section>
             <h2>API Usage</h2>
-            
-            <h3>fli Library (Primary)</h3>
-            <p>The fli library provides FREE access to Google Flights data:</p>
-            <div class="code-block"><span class="comment"># No API key required - uses curl_cffi</span>
-from fli.models import Airport, FlightSearchFilters, FlightSegment, PassengerInfo
-from fli.search import SearchFlights
-
+            <div class="code-block"><span class="comment">from fli.search import SearchFlights</span>
 searcher = SearchFlights()
-segments = [FlightSegment(
-    departure_airport=[[Airport.LHR, 0]],
-    arrival_airport=[[Airport.JFK, 0]],
-    travel_date="2026-07-15",
-)]
 filters = FlightSearchFilters(
     passenger_info=PassengerInfo(adults=1),
-    flight_segments=segments,
+    flight_segments=[...],
 )
 results = searcher.search(filters, top_n=10)</div>
-
-            <h3>SearchAPI (Fallback)</h3>
-            <p>Reliable Google Flights API at $4/1000 requests:</p>
-            <div class="code-block">import httpx
-
-API_KEY = "your_key"
-params = {
-    "engine": "google_flights",
-    "departure_id": "MCI",
-    "arrival_id": "LHR",
-    "outbound_date": "2026-07-15",
-    "api_key": API_KEY,
-}
-resp = httpx.get("https://www.searchapi.io/api/v1/search", params=params)
-flights = resp.json().get("best_flights", [])</div>
-
-            <h3>Duffel API (Backup)</h3>
-            <p>Air booking API with offer requests:</p>
-            <div class="code-block">import httpx
-
-headers = {
-    "Authorization": f"Bearer {api_token}",
-    "Duffel-Version": "v1",
-    "Content-Type": "application/json",
-}
-data = {
-    "data": {
-        "slices": [{
-            "origin": "MCI",
-            "destination": "LHR",
-            "departure_date": "2026-07-15",
-        }],
-        "passengers": [{"type": "adult"}],
-        "max_offers": 10,
-    }
-}</div>
         </section>
 
         <section>
-            <h2>REST API Endpoints</h2>
-            
-            <div class="endpoint">
-                <span class="method">GET</span> <code>/</code>
-                <p>Root endpoint with application info</p>
-                <div class="code-block">{
-  "name": "flight-deal-monitor",
-  "version": "1.0.0",
-  "description": "Automated flight deal monitoring system"
-}</div>
-            </div>
-
-            <div class="endpoint">
-                <span class="method">GET</span> <code>/health</code>
-                <p>Health check with scheduler status</p>
-                <div class="code-block">{
-  "status": "healthy",
-  "scheduler_running": true,
-  "jobs": [...],
-  "job_count": 2
-}</div>
-            </div>
-
-            <div class="endpoint">
-                <span class="method">GET</span> <code>/config</code>
-                <p>Current configuration (secrets redacted)</p>
-            </div>
+            <h2>Quick Start</h2>
+            <div class="code-block">python -m app.main
+<span class="comment"># Server runs at http://localhost:8000</span></div>
         </section>
 
         <section>
-            <h2>Deployment Options</h2>
-            
-            <h3>Docker Compose (Recommended)</h3>
-            <div class="code-block">docker-compose up -d</div>
-            <ul>
-                <li>Multi-stage build optimized for production</li>
-                <li>Auto-restart on failure</li>
-                <li>Health check built-in</li>
-            </ul>
-
-            <h3>Docker (Manual)</h3>
-            <div class="code-block">docker build -t flight-deal-monitor .
-docker run -d \
-  --name flight-monitor \
-  --restart unless-stopped \
-  -p 8000:8000 \
-  --env-file .env \
-  flight-deal-monitor</div>
-
-            <h3>Kubernetes</h3>
-            <div class="code-block">apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: flight-deal-monitor
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: flight-deal-monitor
-  template:
-    metadata:
-      labels:
-        app: flight-deal-monitor
-    spec:
-      containers:
-      - name: app
-        image: ghcr.io/bigknoxy/flight-deal-monitor:latest
-        ports:
-        - containerPort: 8000
-        envFrom:
-        - secretRef:
-            name: flight-monitor-secrets
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000</div>
-
-            <h3>Systemd Service</h3>
-            <div class="code-block">[Unit]
-Description=Flight Deal Monitor
-After=network.target
-
-[Service]
-Type=simple
-User=flight
-WorkingDirectory=/opt/flight-deal-monitor
-ExecStart=/usr/bin/python -m app.main
-Restart=always
-EnvironmentFile=/opt/flight-deal-monitor/.env
-
-[Install]
-WantedBy=multi-user.target</div>
+            <h2>Endpoints</h2>
+            <table>
+                <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+                <tr><td><span class="method">GET</span></td><td>/health</td><td>Health check</td></tr>
+                <tr><td><span class="method">GET</span></td><td>/config</td><td>Configuration</td></tr>
+                <tr><td><span class="method">GET</span></td><td>/search</td><td>Manual search</td></tr>
+            </table>
         </section>
 
         <section>
-            <h2>Monitoring & Troubleshooting</h2>
+            <h2>Deploy</h2>
+            <div class="code-block"><span class="comment"># Docker (recommended)</span>
+docker-compose up -d</div>
             
-            <h3>Health Check</h3>
-            <div class="code-block">curl http://localhost:8000/health | jq</div>
-
-            <h3>View Logs</h3>
-            <div class="code-block">docker-compose logs -f
-<span class="comment"># Or with journalctl</span>
-journalctl -u flight-deal-monitor -f</div>
-
-            <h3>Key Metrics</h3>
-            <ul>
-                <li class="metric">API calls per provider</li>
-                <li class="metric">Alerts sent per day</li>
-                <li class="metric">Cache hit rate</li>
-                <li class="metric">Scheduler job success rate</li>
-            </ul>
+            <div class="code-block"><span class="comment"># Systemd</span>
+systemctl enable flight-deal-monitor
+systemctl start flight-deal-monitor</div>
         </section>
 
-        <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
-            <p>Flight Deal Monitor v1.0.0 | <a href="README.md" style="color: #2563eb;">README</a> | <a href="ARCHITECTURE.html" style="color: #2563eb;">Architecture</a></p>
+        <footer>
+            <p>Flight Deal Monitor v1.0.0 | <a href="index.html">Home</a></p>
         </footer>
     </div>
 </body>

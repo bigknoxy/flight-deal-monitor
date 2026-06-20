@@ -2,461 +2,304 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Flight Deal Monitor - Architecture</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+        :root {
+            --bg: #0a0a0a;
+            --card-bg: #161616;
+            --border: #2a2a2a;
+            --text: #e5e5e5;
+            --muted: #8a8a8a;
+            --accent: #00d4ff;
+            --blue: #2563eb;
+            --amber: #f59e0b;
+            --purple: #a855f7;
         }
         
+        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            color: #1a1a1a;
-            background-color: #f5f5f5;
-            padding: 20px;
+            margin: 0;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: env(safe-area-inset);
         }
         
         .container {
-            max-width: 1200px;
+            min-height: 100vh;
+            padding: 20px 16px;
+            max-width: 500px;
             margin: 0 auto;
-            background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        @media (min-width: 768px) {
+            .container { max-width: 1200px; padding: 40px; }
         }
         
         header {
-            border-bottom: 2px solid #e5e5e5;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
+            text-align: center;
+            margin-bottom: 24px;
         }
         
         nav {
             display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         
         nav a {
+            flex: 1;
+            min-width: 70px;
             text-decoration: none;
-            color: #2563eb;
+            color: var(--text);
+            padding: 6px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            font-size: 0.75rem;
             font-weight: 500;
-            padding: 8px 16px;
-            border-radius: 4px;
-            transition: background 0.2s;
+            transition: all 0.2s;
+            text-align: center;
         }
         
         nav a:hover {
-            background: #eff6ff;
+            background: var(--card-bg);
+            border-color: var(--accent);
         }
         
         nav a.active {
-            background: #2563eb;
-            color: white;
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent);
         }
         
         h1 {
-            color: #1e40af;
-            margin-bottom: 10px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 0 8px;
+            background: linear-gradient(90deg, var(--accent), var(--blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
-        h2 {
-            color: #1e3a8a;
-            margin: 30px 0 15px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #e5e5e5;
-        }
-        
-        h3 {
-            color: #3730a3;
-            margin: 20px 0 10px;
+        @media (min-width: 768px) {
+            h1 { font-size: 2rem; }
         }
         
         .diagram {
-            background: #f9fafb;
-            border: 1px solid #e5e5e5;
-            border-radius: 8px;
-            padding: 20px;
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
             font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
-            font-size: 14px;
+            font-size: 11px;
             overflow-x: auto;
-            margin: 20px 0;
+            margin: 16px 0;
+            color: #c9d1d9;
+        }
+        
+        @media (min-width: 768px) {
+            .diagram { font-size: 13px; padding: 20px; }
         }
         
         .component {
             display: inline-block;
-            padding: 12px 20px;
-            margin: 8px;
+            padding: 8px 12px;
+            margin: 4px;
             border-radius: 6px;
             font-weight: 600;
             text-align: center;
+            font-size: 10px;
+        }
+        
+        @media (min-width: 768px) {
+            .component { padding: 12px 20px; font-size: 13px; }
         }
         
         .primary {
-            background: #dbeafe;
-            border: 2px solid #3b82f6;
-            color: #1e40af;
+            background: rgba(0, 212, 255, 0.2);
+            border: 1px solid var(--accent);
+            color: var(--accent);
         }
         
         .fallback {
-            background: #fef3c7;
-            border: 2px solid #f59e0b;
-            color: #92400e;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid var(--amber);
+            color: var(--amber);
         }
         
         .backup {
-            background: #fae6ff;
-            border: 2px solid #a855f7;
-            color: #6b21a8;
-        }
-        
-        .core {
-            background: #e0e7ff;
-            border: 2px solid #6366f1;
-            color: #312e81;
+            background: rgba(168, 85, 247, 0.2);
+            border: 1px solid var(--purple);
+            color: var(--purple);
         }
         
         .arrow {
-            color: #6b7280;
-            margin: 0 10px;
+            color: var(--muted);
+            margin: 0 4px;
+            font-size: 14px;
         }
         
-        .flow-diagram {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        section {
+            margin-bottom: 24px;
         }
         
-        .flow-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
+        @media (min-width: 768px) {
+            section { margin-bottom: 32px; }
         }
         
-        .box {
-            background: #f3f4f6;
-            border: 1px solid #9ca3af;
-            border-radius: 4px;
-            padding: 10px 15px;
-            min-width: 120px;
-            text-align: center;
+        h2 {
+            font-size: 1.1rem;
+            margin: 0 0 12px;
+            color: var(--accent);
+            font-weight: 600;
         }
         
-        .arrow-box {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 10px;
+        @media (min-width: 768px) {
+            h2 { font-size: 1.4rem; }
         }
         
-        ul {
-            margin-left: 20px;
-            margin-bottom: 15px;
+        h3 {
+            font-size: 0.95rem;
+            color: var(--text);
+            margin: 16px 0 8px;
+            font-weight: 600;
         }
         
-        li {
-            margin-bottom: 8px;
+        @media (min-width: 768px) {
+            h3 { font-size: 1.1rem; }
         }
         
         .code-block {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 15px;
-            border-radius: 6px;
-            font-family: 'Fira Code', 'Monaco', monospace;
-            font-size: 13px;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 11px;
             overflow-x: auto;
-            margin: 15px 0;
+            margin: 12px 0;
+            border: 1px solid var(--border);
         }
         
-        .legend {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            margin-top: 15px;
-            padding: 15px;
-            background: #f9fafb;
-            border-radius: 6px;
+        @media (min-width: 768px) {
+            .code-block { font-size: 13px; padding: 20px; }
         }
         
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .code-block .key { color: #8b949e; }
+        .code-block .type { color: #ff7b72; }
+        
+        footer {
+            text-align: center;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            margin-top: 24px;
         }
         
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
+        footer p {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin: 0;
         }
         
-        .section {
-            margin-bottom: 30px;
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+            margin: 0 8px;
         }
         
-        .metric {
-            display: inline-block;
-            background: #dbeafe;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 13px;
-            margin: 2px;
-        }
+        footer a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <nav>
-                <a href="README.md">README</a>
-                <a href="ARCHITECTURE.html" class="active">ARCHITECTURE</a>
-                <a href="docs.html">DOCUMENTATION</a>
+                <a href="index.html">HOME</a>
+                <a href="ARCHITECTURE.html" class="active">ARCH</a>
+                <a href="docs.html">DOCS</a>
             </nav>
-            <h1>🏗️ Flight Deal Monitor Architecture</h1>
+            <h1>🏗️ Architecture</h1>
         </header>
 
-        <section class="section">
+        <section>
             <h2>System Overview</h2>
             <div class="diagram">
-                <pre style="text-align: center; color: #374151;">
-╔══════════════════════════════════════════════════════════════════════════════════════╗
-║                           FLIGHT DEAL MONITOR ARCHITECTURE                         ║
-╚══════════════════════════════════════════════════════════════════════════════════════╝
+                <pre style="text-align: center; line-height: 1.4;">
+╔═ Flight Deal Monitor Architecture ═╗
 
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│     fli      │────▶│   SearchAPI  │────▶│    Duffel    │
-│ (Primary)    │     │   (Fallback) │     │   (Backup)   │
-│ FREE Google  │     │  $4/1K req   │     │ Air Booking  │
-│ Flights via  │     │              │     │    API       │
-│ curl_cffi     │     │              │     │              │
-└──────────────┘     └──────────────┘     └──────────────┘
-      │                     │                     │
-      └─────────────────────┴─────────────────────┘
-                            │
-                            ▼
-                ┌───────────────────────────┐
-                │       _scan_route         │
-                │  (scheduler_jobs.py)      │
-                └───────────────────────────┘
-                            │
-                            ▼
-                ┌───────────────────────────┐
-                │    detect_deal            │
-                │  (price_analysis.py)      │
-                └───────────────────────────┘
-                            │
-           ┌────────────────┼────────────────┐
-           ▼                ▼                ▼
-    ┌────────────┐   ┌────────────┐   ┌────────────┐
-    │  cache     │   │ telegram   │   │   store    │
-    │(cache.py)  │   │  alert     │   │    db      │
-    └────────────┘   └────────────┘   └────────────┘
+┌───────┐     ┌───────┐     ┌───────┐
+│  fli  │────▶│SearchAPI│────▶│ Duffel │
+│ PRIMARY│     │FALLBACK│     │ BACKUP│
+│ FREE   │     │$4/1K   │     │Air API │
+└───────┘     └───────┘     └───────┘
+     │              │              │
+     └──────────────┴──────────────┘
+                    │
+                    ▼
+         ┌─────────────────┐
+         │   _scan_route    │
+         │(scheduler_jobs)  │
+         └─────────────────┘
+                    │
+                    ▼
+         ┌─────────────────┐
+         │    detect_deal   │
+         │(price_analysis)  │
+         └─────────────────┘
+                    │
+         ┌─────────┬─────────┬─────────┐
+         ▼         ▼         ▼
+    ┌──────┐ ┌──────┐ ┌──────┐
+    │cache │ │telegram│ │ store │
+    └──────┘ └──────┘ └──────┘
                 </pre>
             </div>
         </section>
 
-        <section class="section">
+        <section>
             <h2>API Flow Priority</h2>
-            <div class="flow-diagram">
-                <div class="flow-row">
-                    <div class="component primary">fli (Primary)</div>
-                    <span class="arrow">→</span>
-                    <div class="component fallback">SearchAPI (Fallback)</div>
-                    <span class="arrow">→</span>
-                    <div class="component backup">Duffel (Backup)</div>
-                </div>
+            <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px;">
+                <div class="component primary">fli (PRIMARY)</div>
+                <span class="arrow">→</span>
+                <div class="component fallback">SearchAPI (FALLBACK)</div>
+                <span class="arrow">→</span>
+                <div class="component backup">Duffel (BACKUP)</div>
             </div>
-            
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #dbeafe; border: 2px solid #3b82f6;"></div>
-                    <span>Primary: fli (FREE Google Flights via curl_cffi)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #fef3c7; border: 2px solid #f59e0b;"></div>
-                    <span>Fallback: SearchAPI ($4/1K requests)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #fae6ff; border: 2px solid #a855f7;"></div>
-                    <span>Backup: Duffel Air Booking API</span>
-                </div>
-            </div>
-
-            <h3>API Selection Logic</h3>
-            <ul>
-                <li><strong>fli</strong> - First choice, FREE access to Google Flights data</li>
-                <li><strong>SearchAPI</strong> - Used when fli fails (most reliable fallback)</li>
-                <li><strong>Duffel</strong> - Final backup option</li>
-                <li>All clients return normalized flight data for consistent processing</li>
-            </ul>
+            <p style="font-size: 0.85rem; color: var(--muted); text-align: center; margin-top: 12px;">
+                Free Google Flights → $4/1K requests → Air Booking API
+            </p>
         </section>
 
-        <section class="section">
-            <h2>Key Components</h2>
-            
-            <h3>scheduler_jobs.py</h3>
-            <ul>
-                <li><strong>run_regular_sweep()</strong> - Weekly price checks for all configured routes</li>
-                <li><strong>run_mistake_sweep()</strong> - Daily deep checks for popular high-volume routes</li>
-                <li><strong>_scan_route()</strong> - Core scanning logic with API failover</li>
-            </ul>
-
-            <h3>cache.py</h3>
-            <ul>
-                <li>PriceCache with 6-hour TTL (360 minutes)</li>
-                <li>Reduces API costs by skipping stable price searches</li>
-                <li>Stores flight results keyed by route + date</li>
-            </ul>
-
-            <h3>alert.py</h3>
-            <ul>
-                <li>TelegramBot class for sending notifications</li>
-                <li>Rate limiting (max 10 alerts per hour by default)</li>
-                <li>Markdown-formatted messages with booking links</li>
-            </ul>
-        </section>
-
-        <section class="section">
-            <h2>Data Flow</h2>
-            <div class="diagram">
-                <pre style="color: #374151;">
-┌─────────┐
-│   Start │
-└────┬────┘
-     │
-     ▼
-┌─────────┐
-│   Search │
-│ (fli →  │
-│ SearchAPI│
-│ → Duffel)│
-└────┬────┘
-     │
-     ▼
-┌─────────┐
-│ Detect  │
-│  Deal   │
-│(price   │
-│analysis) │
-└────┬────┘
-     │
-     ▼
-┌─────────┐
-│  Alert  │
-│(Telegram│
-│ bot)    │
-└────┬────┘
-     │
-     ▼
-┌─────────┐
-│  Store  │
-│ (SQLite │
-│/Postgres)│
-└────┬────┘
-     │
-     ▼
-┌─────────┐
-│ Deduplicate │
-│ (24h)   │
-└────┬────┘
-     │
-     ▼
-┌─────────┐
-│  Cache  │
-│ (TTL)   │
-└────┬────┘
-     │
-     ▼
-┌─────────┐
-│   Done  │
-└─────────┘
-                </pre>
-            </div>
-
-            <h3>Step-by-Step Data Flow</h3>
-            <div class="flow-diagram">
-                <div class="flow-row">
-                    <div class="box">1. Search</div>
-                    <div class="arrow-box">→</div>
-                    <div class="box">2. Detect Deal</div>
-                    <div class="arrow-box">→</div>
-                    <div class="box">3. Send Alert</div>
-                </div>
-                <div class="flow-row">
-                    <div class="arrow-box" style="margin-top: 10px;">↓</div>
-                </div>
-                <div class="flow-row">
-                    <div class="box">4. Store</div>
-                    <div class="arrow-box">→</div>
-                    <div class="box">5. Deduplicate</div>
-                    <div class="arrow-box">→</div>
-                    <div class="box">6. Cache</div>
-                </div>
+        <section>
+            <h2>Configuration</h2>
+            <div class="code-block">
+<span class="key">mistake_fare_threshold:</span> <span class="type">0.70</span>  <span class="key"># ≥70% below median</span>
+<span class="key">flash_sale_threshold:</span> <span class="type">0.50</span>  <span class="key"># ≥50% below median</span>
+<span class="key">cache_ttl_minutes:</span> <span class="type">360</span>  <span class="key"># 6 hours</span>
+<span class="key">regular_sweep_interval:</span> <span class="type">1800</span>  <span class="key"># 30 min</span>
+<span class="key">mistake_sweep_interval:</span> <span class="type">900</span>  <span class="key"># 15 min</span>
             </div>
         </section>
 
-        <section class="section">
+        <section>
             <h2>Database Schema</h2>
             <div class="code-block">
-<span style="color: #60e">FlightDeal:</span>
-  - route_id: str (SHA256, 16 chars)
-  - origin: str (IATA code)
-  - destination: str (IATA code)
-  - departure_date: date
-  - airline: str
-  - flight_numbers: str
-  - original_price_usd: float (median)
-  - current_price_usd: float
-  - price_drop_percent: float
-  - deal_type: str (flash_sale/mistake_fare)
-  - booking_url: str
-  - seen_at: datetime
-
-<span style="color: #60e">AlertHistory:</span>
-  - flight_deal_id: int (FK)
-  - telegram_message_id: str
-  - status: str (sent/failed)
-  - error_message: Optional[str]
-  - created_at: datetime
-
-<span style="color: #60e">JobRun:</span>
-  - job_id: str (regular_sweep/mistake_sweep)
-  - started_at: datetime
-  - completed_at: datetime
-  - status: str (success/failed)
-  - deals_detected: int
-  - alerts_sent: int
-  - error_message: Optional[str]
+<span class="key">FlightDeal:</span>
+  route_id: str    origin/destination/date
+  airline: str     flight_numbers: str
+  current_price_usd: float  price_drop_percent: float
+  deal_type: str   booking_url: str
             </div>
         </section>
 
-        <section class="section">
-            <h2>Configuration Parameters</h2>
-            <div class="code-block">
-<span style="color: #8b949e"># Scheduling</span>
-regular_sweep_interval: 1800   <span style="color: #8b949e"># 30 minutes</span>
-mistake_sweep_interval: 900     <span style="color: #8b949e"># 15 minutes</span>
-
-<span style="color: #8b949e"># Deal Detection</span>
-mistake_fare_threshold: 0.70   <span style="color: #8b949e"># ≥70% below median</span>
-flash_sale_threshold: 0.50     <span style="color: #8b949e"># ≥50% below median</span>
-
-<span style="color: #8b949e"># Caching</span>
-cache_ttl_minutes: 360        <span style="color: #8b949e"># 6 hours</span>
-
-<span style="color: #8b949e"># Price History</span>
-look_back_days: 30            <span style="color: #8b949e"># Median from 30 days</span>
-look_ahead_days: 90           <span style="color: #8b949e"># Check 90 days ahead</span>
-            </div>
-        </section>
-
-        <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
-            <p>Flight Deal Monitor v1.0.0 | <a href="README.md" style="color: #2563eb;">Back to README</a> | <a href="docs.html" style="color: #2563eb;">Documentation</a></p>
+        <footer>
+            <p>Flight Deal Monitor v1.0.0 | <a href="index.html">Home</a> | <a href="docs.html">Docs</a></p>
         </footer>
     </div>
 </body>
