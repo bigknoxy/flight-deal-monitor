@@ -284,9 +284,13 @@ async def _scan_route(
         await price_cache.set_cached_route_data(
             origin, destination, departure_date, flights
         )
-        lowest_price = min(
-            float(f.get("price", {}).get("total", float("inf"))) for f in flights
-        )
+        try:
+            lowest_price = min(
+                float(f.get("price", {}).get("total", float("inf")))
+                for f in flights
+            )
+        except (ValueError, TypeError):
+            lowest_price = 0.0
         logger.debug(
             f"Cached {len(flights)} flights for {origin}-{destination}-{departure_date}, lowest: ${lowest_price:.2f}"
         )

@@ -1,0 +1,76 @@
+> """
+> Unified flight search module that tries multiple backends.
+> """
+! import asyncio
+! import logging
+  
+! logger = logging.getLogger(__name__)
+  
+  
+! async def search_flights(
+!     origin: str,
+!     destination: str,
+!     departure_date: str,
+!     return_date: str | None = None,
+!     max_results: int = 10,
+! ) -> list[dict]:
+!     """Search flights using available backends."""
+  
+      # First try: fli library
+!     try:
+!         from app.scrapers.fli_client import FLIClient
+  
+!         loop = asyncio.get_event_loop()
+!         client = FLIClient()
+!         flights = await loop.run_in_executor(
+!             None,
+!             client.search_flights,
+!             origin,
+!             destination,
+!             departure_date,
+!             return_date,
+!             max_results,
+!         )
+!         if flights:
+!             logger.info(f"fli search returned {len(flights)} flights")
+!             return flights
+!     except Exception as e:
+!         logger.warning(f"fli search failed: {e}")
+  
+      # Second try: SearchAPI
+!     try:
+!         from app.api.searchapi import SearchAPIClient
+  
+!         client = SearchAPIClient()
+!         flights = await client.search_flights(
+!             origin, destination, departure_date, return_date, max_results
+!         )
+!         if flights:
+!             logger.info(f"SearchAPI returned {len(flights)} flights")
+!             return flights
+!     except Exception as e:
+!         logger.warning(f"SearchAPI failed: {e}")
+  
+      # Third try: Duffel
+!     try:
+!         from app.api.duffel import DuffelClient
+  
+!         client = DuffelClient()
+!         flights = await client.search_flights(
+!             origin, destination, departure_date, return_date, max_results
+!         )
+!         if flights:
+!             logger.info(f"Duffel returned {len(flights)} flights")
+!             return flights
+!     except Exception as e:
+!         logger.warning(f"Duffel failed: {e}")
+  
+!     logger.error("All flight search backends failed")
+!     return []
+  
+  
+! if __name__ == "__main__":
+!     flights = asyncio.run(search_flights("MCI", "LHR", "2026-07-15", "2026-07-22"))
+!     print(f"Found {len(flights)} flights")
+!     for f in flights[:3]:
+!         print(f)

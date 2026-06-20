@@ -42,7 +42,7 @@ class PriceCache:
         self, origin: str, destination: str, departure_date: str, flights: list[dict]
     ) -> None:
         key = f"{origin}:{destination}:{departure_date}"
-        self._cache.set(key, flights)
+        self._cache.set(key, (flights, time.time()))
 
     def clear(self) -> None:
         self._cache.clear()

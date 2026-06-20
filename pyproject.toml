@@ -34,6 +34,20 @@ mypy = "^1.7.1"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/scrapers/agent_browser.py",
+    "app/scrapers/browser_search.py",
+    "app/scrapers/flight_browser.py",
+    "app/scrapers/flight_search.py",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

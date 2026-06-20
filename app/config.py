@@ -80,6 +80,9 @@ class AppConfig(BaseSettings):
         with open(path) as f:
             config_data = yaml.safe_load(f)
 
+        if config_data is None:
+            return cls()
+
         return cls(**config_data.get("app", {}))
 
 

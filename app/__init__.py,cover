@@ -1,0 +1,3 @@
+> """Flight Deal Monitor - Automated flight deal monitoring and alerting system."""
+  
+> __version__ = "1.0.0"

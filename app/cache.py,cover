@@ -1,0 +1,51 @@
+> import time
+> from datetime import datetime
+> from typing import Any
+  
+  
+> class TTLCache:
+>     def __init__(self, ttl_seconds: int = 3600):
+>         self._cache: dict[str, tuple[Any, float]] = {}
+>         self._ttl = ttl_seconds
+  
+>     def get(self, key: str) -> Any | None:
+!         if key not in self._cache:
+!             return None
+!         value, timestamp = self._cache[key]
+!         if time.time() - timestamp > self._ttl:
+!             del self._cache[key]
+!             return None
+!         return value
+  
+>     def set(self, key: str, value: Any) -> None:
+!         self._cache[key] = (value, time.time())
+  
+>     def clear(self) -> None:
+!         self._cache.clear()
+  
+  
+> class PriceCache:
+>     def __init__(self, default_ttl_seconds: int = 6 * 60 * 60):
+>         self._cache = TTLCache(default_ttl_seconds)
+  
+>     async def get_cached_route_data(
+>         self, origin: str, destination: str, departure_date: str
+>     ) -> tuple[list[dict], datetime] | None:
+!         key = f"{origin}:{destination}:{departure_date}"
+!         data = self._cache.get(key)
+!         if data is None:
+!             return None
+!         flights, timestamp = data
+!         return (flights, datetime.fromtimestamp(timestamp))
+  
+>     async def set_cached_route_data(
+>         self, origin: str, destination: str, departure_date: str, flights: list[dict]
+>     ) -> None:
+!         key = f"{origin}:{destination}:{departure_date}"
+!         self._cache.set(key, (flights, time.time()))
+  
+>     def clear(self) -> None:
+!         self._cache.clear()
+  
+  
+> price_cache = PriceCache()
