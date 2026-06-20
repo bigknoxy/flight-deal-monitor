@@ -2,6 +2,7 @@
 import sys
 
 sys.path.insert(0, "/root/.local/pipx/venvs/flights/lib/python3.11/site-packages")  # noqa: E402
+from typing import Any
 import logging  # noqa: E402
 
 from fli.models import Airport, FlightSearchFilters, FlightSegment, PassengerInfo  # noqa: E402
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class FLIClient:
     """Client for interacting with the fli library."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.searcher = SearchFlights()
 
     def search_flights(
@@ -71,7 +72,7 @@ class FLIClient:
             logger.warning(f"fli search failed: {e}")
             return []
 
-    def _to_dict(self, result) -> dict:
+    def _to_dict(self, result: Any) -> dict:
         """Convert FlightResult to dictionary matching SearchAPI format."""
         leg = result.legs[0] if result.legs else None
 

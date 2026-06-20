@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     # Startup
     logger.info("Starting flight deal monitor...")
@@ -63,7 +64,7 @@ class HealthResponse(BaseModel):
 
 
 @app.get("/", response_model=dict)
-async def root():
+async def root() -> dict:
     """Root endpoint."""
     return {
         "name": config.app.name,
@@ -73,7 +74,7 @@ async def root():
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health():
+async def health() -> HealthResponse:
     """Health check endpoint."""
     scheduler_status = get_scheduler_status()
 
@@ -86,7 +87,7 @@ async def health():
 
 
 @app.get("/config")
-async def get_config():
+async def get_config() -> dict:
     """Get current configuration (without secrets)."""
     return {
         "app": {

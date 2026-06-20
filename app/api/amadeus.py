@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class AmadeusClient:
     """Amadeus API client."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.client_id = config.env.amadeus_client_id
         self.client_secret = config.env.amadeus_client_secret
         self.env = config.env.amadeus_env
@@ -74,7 +74,7 @@ class AmadeusClient:
             response.raise_for_status()
             result = response.json()
 
-        flights = result.get("data", [])
+        flights: list[dict] = result.get("data", [])
         logger.info(f"Found {len(flights)} flights from {origin} to {destination}")
         return flights
 
