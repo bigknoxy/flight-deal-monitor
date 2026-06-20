@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Deal Monitor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #1a1a1a;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        header {
+            border-bottom: 2px solid #e5e5e5;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+        }
+        
+        nav {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        nav a {
+            text-decoration: none;
+            color: #2563eb;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        nav a:hover {
+            background: #eff6ff;
+        }
+        
+        nav a.active {
+            background: #2563eb;
+            color: white;
+        }
+        
+        h1 {
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+        
+        .subtitle {
+            color: #6b7280;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #1e3a8a;
+            margin: 30px 0 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .card {
+            background: #f9fafb;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 24px;
+            transition: box-shadow 0.2s, transform 0.2s;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .card-icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+        }
+        
+        .card h3 {
+            color: #1e40af;
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+        
+        .card p {
+            color: #6b7280;
+            font-size: 0.95rem;
+        }
+        
+        .card .meta {
+            margin-top: 12px;
+            font-size: 0.85rem;
+            color: #9ca3af;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .feature {
+            padding: 15px;
+            background: #f3f4f6;
+            border-radius: 6px;
+            border-left: 4px solid #2563eb;
+        }
+        
+        .feature h4 {
+            color: #1e3a8a;
+            margin-bottom: 4px;
+        }
+        
+        .feature p {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        
+        ul {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e5e5;
+            text-align: center;
+            color: #6b7280;
+        }
+        
+        footer a {
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <nav>
+                <a href="index.html" class="active">HOME</a>
+                <a href="ARCHITECTURE.html">ARCHITECTURE</a>
+                <a href="docs.html">DOCUMENTATION</a>
+            </nav>
+            <h1>✈️ Flight Deal Monitor</h1>
+            <p class="subtitle">Automated flight deal monitoring system that detects flash sales &amp; mistake fares</p>
+        </header>
+
+        <section>
+            <h2>Quick Links</h2>
+            <div class="cards">
+                <a href="ARCHITECTURE.html" class="card">
+                    <div class="card-icon">🏗️</div>
+                    <h3>Architecture Overview</h3>
+                    <p>System design, API flow priority, data flow diagrams, database schema, and configuration parameters.</p>
+                    <div class="meta">System architecture &rarr;</div>
+                </a>
+                <a href="docs.html" class="card">
+                    <div class="card-icon">📚</div>
+                    <h3>Documentation</h3>
+                    <p>Installation guide, configuration reference, API usage examples, deployment options, and monitoring.</p>
+                    <div class="meta">Read the docs &rarr;</div>
+                </a>
+                <a href="README.md" class="card">
+                    <div class="card-icon">📖</div>
+                    <h3>README</h3>
+                    <p>Project overview, features, quick start, and repository information.</p>
+                    <div class="meta">Project home &rarr;</div>
+                </a>
+            </div>
+        </section>
+
+        <section>
+            <h2>Key Features</h2>
+            <div class="features">
+                <div class="feature">
+                    <h4>🔍 Multi-Source Search</h4>
+                    <p>Aggregates flight data from fli (free), SearchAPI, and Duffel with automatic failover.</p>
+                </div>
+                <div class="feature">
+                    <h4>📉 Smart Deal Detection</h4>
+                    <p>Identifies flash sales (≥50% off) and mistake fares (≥70% off) using price history.</p>
+                </div>
+                <div class="feature">
+                    <h4>🤖 Telegram Alerts</h4>
+                    <p>Sends formatted flight deal notifications with booking links directly to Telegram.</p>
+                </div>
+                <div class="feature">
+                    <h4>💾 Smart Caching</h4>
+                    <p>6-hour TTL cache reduces API costs by skipping stable price searches.</p>
+                </div>
+                <div class="feature">
+                    <h4>🔄 Scheduled Scanning</h4>
+                    <p>Regular sweeps every 30 min, mistake fare sweeps every 15 min.</p>
+                </div>
+                <div class="feature">
+                    <h4>🐳 Docker Support</h4>
+                    <p>Ready-to-deploy Docker Compose setup with health checks and auto-restart.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Tech Stack</h2>
+            <ul>
+                <li><strong>Runtime:</strong> Python 3.11+ with async support</li>
+                <li><strong>Web Framework:</strong> FastAPI (Starlette/Uvicorn)</li>
+                <li><strong>Database:</strong> SQLite (default) / PostgreSQL via SQLAlchemy</li>
+                <li><strong>Flight APIs:</strong> fli (curl_cffi), SearchAPI, Duffel</li>
+                <li><strong>Notifications:</strong> Telegram Bot API</li>
+                <li><strong>Infrastructure:</strong> Docker, Docker Compose, Kubernetes-ready</li>
+            </ul>
+        </section>
+
+        <footer>
+            <p>Flight Deal Monitor v1.0.0 | <a href="https://github.com/bigknoxy/flight-deal-monitor">GitHub</a> | <a href="ARCHITECTURE.html">Architecture</a> | <a href="docs.html">Documentation</a></p>
+        </footer>
+    </div>
+</body>
+</html>
