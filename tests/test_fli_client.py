@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from app.scrapers.fli_client import FLIClient
 
 
@@ -118,7 +116,7 @@ class TestFLIClientSearch:
             mock_result.duration = 360
             mock_result.booking_token = None
 
-            with patch.object(FLIClient, "search_flights", return_value=[]) as mock_search:
+            with patch.object(FLIClient, "search_flights", return_value=[]):
                 client = FLIClient()
 
                 # Can't actually test search because it calls self.searcher.search

@@ -1,6 +1,6 @@
 """Test the FastAPI lifespan function directly."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -38,7 +38,7 @@ class TestLifespan:
         from app.main import lifespan
 
         with (
-            patch("app.main.init_db") as mock_init,
+            patch("app.main.init_db"),
             patch("app.main.telegram_bot.test_connection", return_value=True),
             patch("app.main.setup_jobs"),
             patch("app.main.start_scheduler"),

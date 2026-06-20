@@ -1,7 +1,6 @@
 """Extended price analysis tests — edge cases for calculate_median_price, detect_deal boundaries."""
 
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

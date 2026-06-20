@@ -24,11 +24,11 @@ class TestJobRunLifecycle:
         mock_session.commit = AsyncMock()
         mock_session.refresh = AsyncMock()
 
-        job_run_created = JobRun(job_id="regular_sweep", status="running")
+        JobRun(job_id="regular_sweep", status="running")
         mock_session.__aenter__.return_value = mock_session
 
         with patch("app.scheduler_jobs.AsyncSessionLocal", return_value=mock_session):
-            result = await _start_job_run("regular_sweep")
+            await _start_job_run("regular_sweep")
             # Check that commit/refresh were called
             mock_session.add.assert_called_once()
             mock_session.commit.assert_called_once()
@@ -151,7 +151,7 @@ class TestScanRouteFallbackChain:
                 with patch("app.scheduler_jobs.calculate_price_drop", return_value=60.0):
                     # Need to handle the DB session commit/refresh for deal creation
                     # Since this is mocking-heavy, let's just check fli was called
-                    result = await _scan_route(mock_session, "MCI", "LHR", "2024-06-01")
+                    await _scan_route(mock_session, "MCI", "LHR", "2024-06-01")
                     mock_fli.search_flights.assert_called_once()
 
     @pytest.mark.asyncio
@@ -173,7 +173,7 @@ class TestScanRouteFallbackChain:
                 mock_searchapi.search_flights.return_value = [{"flight": "searchapi_result"}]
                 mock_searchapi_cls.return_value = mock_searchapi
 
-                result = await _scan_route(mock_session, "MCI", "LHR", "2024-06-01")
+                await _scan_route(mock_session, "MCI", "LHR", "2024-06-01")
                 # fli returned [], so SearchAPI should be called
                 mock_fli.search_flights.assert_called_once()
                 mock_searchapi.search_flights.assert_called_once()
@@ -202,7 +202,6 @@ class TestScanRouteFallbackChain:
     @pytest.mark.asyncio
     async def test_scan_route_low_price_skipped(self, mock_session):
         """Flights below min_price_usd should be skipped (line 250-251)."""
-        from app.config import config
 
         cheap_flight = {
             "validatingAirlineCodes": ["NK"],

@@ -1,6 +1,6 @@
 """Test scheduler module — start, shutdown, status, job setup."""
 
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -123,7 +123,7 @@ class TestSetupJobs:
         mock_job.name = "Test Job"
         mock_job.id = "test"
 
-        with patch.object(scheduler, "add_job") as mock_add_job:
+        with patch.object(scheduler, "add_job"):
             with patch.object(scheduler, "get_jobs", return_value=[mock_job, mock_job]):
                 setup_jobs()
                 # get_jobs called after adding jobs (for logging)
