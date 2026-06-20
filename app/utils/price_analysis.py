@@ -61,18 +61,23 @@ def detect_deal(
     current_price: float,
     median_price: float,
 ) -> Tuple[bool, Optional[str]]:
-    """Detect if a flight is a deal based on price thresholds."""
+    """Detect if a flight is a deal based on price thresholds.
+    
+    Thresholds:
+    - Mistake fare: price_drop >= 70% (configurable)
+    - Flash sale: price_drop >= 50% (configurable)
+    """
     if current_price >= median_price:
         return False, None
 
     price_drop_percent = (median_price - current_price) / median_price
 
-    # Mistake fare: <30% of median (more than 70% off)
-    if current_price < median_price * config.app.mistake_fare_threshold:
+    # Mistake fare: ≥70% off
+    if price_drop_percent >= config.app.deal_thresholds.mistake_fare_percent:
         return True, "mistake_fare"
 
-    # Flash sale: ≥40% below median
-    if price_drop_percent >= config.app.flash_sale_threshold:
+    # Flash sale: ≥50% off
+    if price_drop_percent >= config.app.deal_thresholds.flash_sale_percent:
         return True, "flash_sale"
 
     return False, None

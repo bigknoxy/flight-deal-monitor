@@ -1,29 +1,52 @@
 app:
-  name: "flight-deal-monitor"
-  version: "1.0.0"
-
   home_airports:
     - "MCI"
-    - "LAX"
-    - "JFK"
 
   destinations:
-    - "LHR"
-    - "CDG"
-    - "NRT"
-    - "DXB"
-    - "SYD"
+    - "JFK"
+    - "LGA"
+    - "EWR"
+    - "BOS"
+    - "PWM"
+    - "ONT"
+    - "SBA"
+    - "PLS"
+    - "SJO"
+    - "AUS"
+    - "DUB"
+    - "BCN"
+    - "LHR"  # Added Heathrow (more reliable than LTN)
+    - "LTN"
+    - "EDI"
+    - "OSL"
+    - "NRT"  # Fixed: Narita instead of TYO
+    - "HND"  # Added: Haneda as alternative
+    - "ICN"
 
-  search:
-    max_results_per_route: 10
-    look_ahead_days: 90
-    look_back_days: 30
+  # Deal detection thresholds (configurable per-route)
+  deal_thresholds:
+    mistake_fare_percent: 0.70    # 70% below median = mistake fare
+    flash_sale_percent: 0.50      # 50% below median = flash sale
+    deep_flash_percent: 0.65      # 65% below median = deep discount
 
-  flash_sale_threshold: 0.40
-  mistake_fare_threshold: 0.30
+  # Route-specific overrides (multiplier based on volatility)
+  route_multipliers:
+    domestic: 1.0
+    transatlantic: 0.8
+    transpacific: 0.7
+    latin_america: 1.2
+    europe: 0.85
+
+  max_results_per_route: 10
+  look_ahead_days: 90
+  look_back_days: 30
+
   min_price_usd: 100
   max_alerts_per_hour: 10
 
   regular_sweep_interval: 1800
   mistake_sweep_interval: 900
   job_coalesce: true
+
+  cache_ttl_minutes: 360
+  cache_variance_threshold: 0.05

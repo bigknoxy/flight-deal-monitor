@@ -2,6 +2,7 @@
 
 import pytest
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.utils import (
     cleanup_expired_deals,
@@ -26,9 +27,11 @@ def test_generate_deal_hash():
 @pytest.mark.asyncio
 async def test_mark_flight_seen():
     """Test marking flight as seen."""
-    from unittest.mock import AsyncMock, patch
-
-    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session_cls.return_value = mock_session
+        
         deal = FlightDeal(
             route_id="test_route",
             origin="MCI",
@@ -43,8 +46,6 @@ async def test_mark_flight_seen():
             booking_url="https://example.com",
         )
 
-        mock_session.commit = AsyncMock()
-
         await mark_flight_seen(mock_session, deal)
 
         assert deal.expired_at is not None
@@ -54,9 +55,10 @@ async def test_mark_flight_seen():
 @pytest.mark.asyncio
 async def test_is_flight_seen_recently_true():
     """Test is_flight_seen_recently when flight was seen."""
-    from unittest.mock import AsyncMock, patch
-
-    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+        
         mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = FlightDeal(
             route_id="test_route",
@@ -84,9 +86,10 @@ async def test_is_flight_seen_recently_true():
 @pytest.mark.asyncio
 async def test_is_flight_seen_recently_false():
     """Test is_flight_seen_recently when flight not seen."""
-    from unittest.mock import AsyncMock, patch
-
-    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+        
         mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None
 
@@ -100,9 +103,10 @@ async def test_is_flight_seen_recently_false():
 @pytest.mark.asyncio
 async def test_cleanup_expired_deals():
     """Test cleanup of expired deals."""
-    from unittest.mock import AsyncMock, patch, MagicMock
-
-    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+        
         expired_deal = FlightDeal(
             route_id="expired_route",
             origin="MCI",
@@ -118,11 +122,13 @@ async def test_cleanup_expired_deals():
             expired_at=datetime.utcnow() - timedelta(hours=1),
         )
 
-        mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = [expired_deal]
+        mock_scalars_result = AsyncMock()
+        mock_scalars_result.all.return_value = [expired_deal]
+        
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars_result
+        
         mock_session.execute.return_value = mock_result
-        mock_session.delete = AsyncMock()
-        mock_session.commit = AsyncMock()
 
         count = await cleanup_expired_deals(mock_session)
 

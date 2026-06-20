@@ -8,7 +8,6 @@ from app.utils import (
     calculate_price_drop,
     detect_deal,
     generate_route_id,
-    has_recent_alert,
 )
 from app.models.flight import FlightDeal
 
@@ -28,8 +27,8 @@ def test_calculate_price_drop_zero_median():
 
 
 def test_detect_deal_flash_sale():
-    """Test flash sale detection."""
-    is_deal, deal_type = detect_deal(300.0, 500.0)
+    """Test flash sale detection (>=50% off, but not mistake fare)."""
+    is_deal, deal_type = detect_deal(200.0, 500.0)  # 60% off
 
     assert is_deal is True
     assert deal_type == "flash_sale"

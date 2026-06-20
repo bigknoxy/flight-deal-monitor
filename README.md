@@ -1,16 +1,20 @@
 # Flight Deal Monitor 🛫💰
 
+**IMPORTANT: This README.md is the source of truth. When code changes affect features, thresholds, or configuration, update this file in the same commit.**
+
 Automated flight deal monitoring and alerting system that searches for flash sales and mistake fares, sending real-time alerts via Telegram.
 
 ## Features ✨
 
 - **Route Monitoring**: Continuous monitoring of flight prices from home airports to destinations
-- **Deal Detection**: Identifies flash sales (≥40% drop) and mistake fares (<30% of median)
+- **Deal Detection**: Identifies flash sales (≥50% drop) and mistake fares (≥70% off median)
 - **Real-time Alerts**: Instant Telegram notifications with booking links
 - **24h Deduplication**: Prevents duplicate alerts for the same flight
 - **Smart Scheduling**: Regular sweeps (30min) + priority mistake fare checks (15min)
 - **Price History**: Median price calculations for accurate deal detection
-- **Dual API Support**: Amadeus (primary) + Duffel (backup) for reliability
+- **Multi API Support**: fli library (FREE Google Flights, primary) + SearchAPI ($4/1K, fallback) + Duffel Air API (backup)
+- **Note**: fli uses curl_cffi to access Google Flights API — works intermittently as Google blocks repeated requests
+- **Price Caching**: 6-hour TTL cache reduces API costs by skipping stable price searches
 - **Health Monitoring**: Built-in health endpoints for Docker/Kubernetes
 - **Docker Ready**: Multi-stage Docker build for easy deployment
 
@@ -20,7 +24,8 @@ Automated flight deal monitoring and alerting system that searches for flash sal
 - **Database**: SQLite (PostgreSQL upgrade path available)
 - **ORM**: SQLModel (type-safe, SQLAlchemy-backed)
 - **HTTP Client**: httpx (async)
-- **APIs**: Amadeus Flight Search + Duffel Air API
+- **APIs**: fli (free Google Flights, primary) + SearchAPI ($4/1K, fallback) + Duffel Air API (backup)
+- **Note**: fli works intermittently due to Google blocking; SearchAPI is the reliable fallback
 - **Notifications**: Telegram Bot API
 - **Deployment**: Docker + docker-compose
 - **Testing**: pytest + pytest-asyncio + pytest-mock
@@ -28,10 +33,10 @@ Automated flight deal monitoring and alerting system that searches for flash sal
 ## Quick Start 🚀
 
 ### Prerequisites
-
+   
 - Python 3.11+
-- Amadeus API credentials (get them [here](https://developers.amadeus.com))
-- Duffel API credentials (get them [here](https://duffel.com/docs/api))
+- [SearchAPI](https://www.searchapi.io/docs/google-flights-api) key (fallback, Google Flights)
+- Duffel API credentials (backup, [get them here](https://duffel.com/docs/api))
 - Telegram Bot token (create via [@BotFather](https://t.me/botfather))
 - Docker (optional, for containerized deployment)
 
@@ -68,7 +73,7 @@ The app will start on `http://localhost:8000`
    docker-compose up -d
    ```
 
-2. **View logs**:
+2. **View Logs**:
    ```bash
    docker-compose logs -f
    ```
@@ -83,10 +88,11 @@ The app will start on `http://localhost:8000`
 ### Environment Variables (.env)
 
 ```bash
-# Amadeus API (primary)
-AMADEUS_CLIENT_ID=your_client_id
-AMADEUS_CLIENT_SECRET=your_client_secret
-AMADEUS_ENV=test  # or "production"
+# fli (primary - FREE Google Flights)
+# No API key required - uses curl_cffi to access Google Flights directly
+
+# SearchAPI (fallback - $4/1K)
+SEARCHAPI_API_KEY=your_api_key
 
 # Duffel API (backup)
 DUFFEL_API_TOKEN=your_api_token
@@ -107,20 +113,40 @@ LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 ```yaml
 app:
   home_airports:
-    - "MCI"  # Your home airports
-    - "LAX"
-    - "JFK"
+    - "MCI"
 
   destinations:
-    - "LHR"  # Destinations to monitor
-    - "CDG"
+    - "JFK"
+    - "LGA"
+    - "EWR"
+    - "BOS"
+    - "LHR"
     - "NRT"
+    - "ICN"
 
-  flash_sale_threshold: 0.40  # 40% below median
-  mistake_fare_threshold: 0.30  # 30% of median
+  max_results_per_route: 10
+  look_ahead_days: 90
+  look_back_days: 30
+
+  min_price_usd: 100
+  max_alerts_per_hour: 10
 
   regular_sweep_interval: 1800  # 30 minutes
-  mistake_sweep_interval: 900  # 15 minutes
+  mistake_sweep_interval: 900   # 15 minutes
+  job_coalesce: true
+
+  cache_ttl_minutes: 360        # 6 hours
+  cache_variance_threshold: 0.05
+```
+
+#### Deal Thresholds
+
+```yaml
+app:
+  deal_thresholds:
+    mistake_fare_percent: 0.70   # ≥70% below median = mistake fare
+    flash_sale_percent: 0.50     # ≥50% below median = flash sale
+    deep_flash_percent: 0.65     # ≥65% below median = deep discount
 ```
 
 ## API Endpoints 📡
@@ -201,8 +227,12 @@ flight-deal-monitor/
 │   │   └── job.py           # Job models
 │   ├── api/
 │   │   ├── amadeus.py       # Amadeus client
-│   │   └── duffel.py        # Duffel client
+│   │   ├── duffel.py        # Duffel client
+│   │   └── searchapi.py     # SearchAPI client
+│   ├── scrapers/
+│   │   └── fli_client.py    # fli library wrapper
 │   ├── alert.py             # Telegram bot
+│   ├── cache.py             # TTL price caching
 │   ├── scheduler.py         # APScheduler setup
 │   ├── scheduler_jobs.py    # Job implementations
 │   └── utils/
@@ -223,18 +253,18 @@ flight-deal-monitor/
 
 ## Deal Detection Logic 🎯
 
-### Flash Sales
-- Triggered when price is ≥40% below median
-- Example: Median $500, current $300 = 40% off → 📉 Alert!
-
 ### Mistake Fares
-- Triggered when price is <30% of median
-- Example: Median $500, current $100 = 80% off → 🚨 URGENT!
+- Triggered when price is ≥70% below median
+- Example: Median $500, current $150 = 70% off → 🚨 URGENT!
+
+### Flash Sales
+- Triggered when price is ≥50% below median
+- Example: Median $500, current $250 = 50% off → 🔥 Alert!
 
 ### Price History
 - Median calculated from last 30 days of pricing data
 - More accurate than average (resistant to outliers)
-- Cached for 1 hour to reduce API calls
+- Cached for 6 hours to reduce API calls
 
 ## Telegram Alerts 📱
 
@@ -258,7 +288,7 @@ Flash Sale
 ✈️ British Airways
 
 💰 $500.00 → $300.00
-📉 40.0% OFF
+📉 50.0% OFF
 
 [Book Now](https://example.com/book)
 
@@ -314,9 +344,9 @@ docker-compose logs -f app
 - **Solution**: Check bot token and chat ID in `.env`
 - **Solution**: Verify bot is added to the group/channel (if using group chat)
 
-**Issue**: Amadeus API rate limiting
-- **Solution**: System will automatically failover to Duffel
-- **Solution**: Check `AMADEUS_ENV` (use "test" for development)
+**Issue**: fli search failing
+- **Solution**: Google blocks repeated requests; system will automatically use SearchAPI fallback
+- **Solution**: Consider using SearchAPI for reliable results
 
 **Issue**: Database locked errors
 - **Solution**: Ensure only one app instance is running
@@ -326,6 +356,14 @@ docker-compose logs -f app
 - **Solution**: Check health endpoint: `/health`
 - **Solution**: Verify deal thresholds in `config/app.yaml`
 - **Solution**: Check logs: `docker-compose logs app`
+
+## Architecture
+
+For detailed architecture documentation, see [ARCHITECTURE.html](ARCHITECTURE.html).
+
+## Documentation
+
+For full documentation, see [docs.html](docs.html).
 
 ## Roadmap 🗺️
 
@@ -351,7 +389,8 @@ MIT License - see LICENSE file for details
 
 ## Acknowledgments 🙏
 
-- Amadeus for their flight search API
+- fli library for free Google Flights access
+- SearchAPI for reliable Google Flights API
 - Duffel for their air booking API
 - Telegram for their bot platform
 

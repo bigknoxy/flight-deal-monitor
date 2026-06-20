@@ -89,8 +89,10 @@ async def get_config():
             "version": config.app.version,
             "home_airports": config.app.home_airports,
             "destinations": config.app.destinations,
-            "flash_sale_threshold": config.app.flash_sale_threshold,
-            "mistake_fare_threshold": config.app.mistake_fare_threshold,
+            "deal_thresholds": {
+                "mistake_fare_percent": config.app.deal_thresholds.mistake_fare_percent,
+                "flash_sale_percent": config.app.deal_thresholds.flash_sale_percent,
+            },
             "regular_sweep_interval": config.app.regular_sweep_interval,
             "mistake_sweep_interval": config.app.mistake_sweep_interval,
         },

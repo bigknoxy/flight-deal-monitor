@@ -1,7 +1,7 @@
 """Test API clients."""
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.api import AmadeusClient, DuffelClient
 
@@ -21,27 +21,33 @@ def duffel_client():
 @pytest.mark.asyncio
 async def test_amadeus_get_token(amadeus_client):
     """Test Amadeus token retrieval."""
-    with patch("httpx.AsyncClient.post") as mock_post:
-        mock_response = AsyncMock()
+    with patch("httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {
             "access_token": "test_token",
             "expires_in": 1800,
         }
-        mock_post.return_value = mock_response
+        mock_client.post.return_value = mock_response
+        mock_client_class.return_value.__aenter__.return_value = mock_client
 
         token = await amadeus_client._get_token()
 
         assert token == "test_token"
         assert amadeus_client.token == "test_token"
-        mock_post.assert_called_once()
+        mock_client.post.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_amadeus_search_flights(amadeus_client):
     """Test Amadeus flight search."""
-    with patch.object(amadeus_client, "_get_token", return_value="test_token"):
-        with patch("httpx.AsyncClient.get") as mock_get:
-            mock_response = AsyncMock()
+    async def mock_get_token():
+        return "test_token"
+
+    with patch.object(amadeus_client, "_get_token", side_effect=mock_get_token):
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_response = MagicMock()
             mock_response.json.return_value = {
                 "data": [
                     {
@@ -57,8 +63,8 @@ async def test_amadeus_search_flights(amadeus_client):
                     }
                 ]
             }
-            mock_response.raise_for_status = AsyncMock()
-            mock_get.return_value = mock_response
+            mock_client.get.return_value = mock_response
+            mock_client_class.return_value.__aenter__.return_value = mock_client
 
             flights = await amadeus_client.search_flights(
                 "MCI", "LHR", "2024-06-01"
@@ -93,15 +99,11 @@ async def test_duffel_search_flights(duffel_client):
     """Test Duffel flight search."""
     with patch("httpx.AsyncClient") as mock_client_class:
         mock_client = AsyncMock()
-        mock_client_class.return_value.__aenter__.return_value = mock_client
 
-        # Mock offer request creation
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.json.return_value = {"data": {"id": "req_123"}}
-        mock_response.raise_for_status = AsyncMock()
 
-        # Mock offers retrieval
-        mock_response2 = AsyncMock()
+        mock_response2 = MagicMock()
         mock_response2.json.return_value = {
             "data": [
                 {
@@ -110,10 +112,10 @@ async def test_duffel_search_flights(duffel_client):
                 }
             ]
         }
-        mock_response2.raise_for_status = AsyncMock()
 
         mock_client.post.return_value = mock_response
         mock_client.get.return_value = mock_response2
+        mock_client_class.return_value.__aenter__.return_value = mock_client
 
         offers = await duffel_client.search_flights("MCI", "LHR", "2024-06-01")
 
