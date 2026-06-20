@@ -1,5 +1,7 @@
 # Flight Deal Monitor 🛫💰
 
+[ARCHITECTURE](ARCHITECTURE.html) | [DOCUMENTATION](docs.html)
+
 **IMPORTANT: This README.md is the source of truth. When code changes affect features, thresholds, or configuration, update this file in the same commit.**
 
 Automated flight deal monitoring and alerting system that searches for flash sales and mistake fares, sending real-time alerts via Telegram.
