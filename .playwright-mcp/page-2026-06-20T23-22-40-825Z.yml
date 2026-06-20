@@ -1,0 +1,80 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - navigation [ref=e4]:
+      - link "HOME" [ref=e5] [cursor=pointer]:
+        - /url: index.html
+      - link "ARCH" [ref=e6] [cursor=pointer]:
+        - /url: ARCHITECTURE.html
+      - link "DOCS" [ref=e7] [cursor=pointer]:
+        - /url: docs.html
+    - generic [ref=e8]: ✈️
+    - heading "Flight Deal Monitor" [level=1] [ref=e9]
+    - paragraph [ref=e10]: AI-powered flight deal alerts • Flash sale detection • Mistake fare hunting
+  - generic [ref=e11]:
+    - heading "Quick Links" [level=2] [ref=e12]
+    - generic [ref=e13]:
+      - link "🏗️ Architecture Overview System design, API flow, data pipeline, and database schema with ASCII diagrams. View architecture →" [ref=e14] [cursor=pointer]:
+        - /url: ARCHITECTURE.html
+        - generic [ref=e15]: 🏗️
+        - heading "Architecture Overview" [level=3] [ref=e16]
+        - paragraph [ref=e17]: System design, API flow, data pipeline, and database schema with ASCII diagrams.
+        - generic [ref=e18]: View architecture →
+      - link "📚 Documentation Installation, configuration, API reference, and deployment guide. Read documentation →" [ref=e19] [cursor=pointer]:
+        - /url: docs.html
+        - generic [ref=e20]: 📚
+        - heading "Documentation" [level=3] [ref=e21]
+        - paragraph [ref=e22]: Installation, configuration, API reference, and deployment guide.
+        - generic [ref=e23]: Read documentation →
+      - link "📖 Project README Features, quick start, and repository information. View README →" [ref=e24] [cursor=pointer]:
+        - /url: README.md
+        - generic [ref=e25]: 📖
+        - heading "Project README" [level=3] [ref=e26]
+        - paragraph [ref=e27]: Features, quick start, and repository information.
+        - generic [ref=e28]: View README →
+  - generic [ref=e29]:
+    - heading "Key Features" [level=2] [ref=e30]
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - heading "🔍 Multi-Source Search" [level=4] [ref=e33]
+        - paragraph [ref=e34]: fli (free) → SearchAPI ($4/1K) → Duffel backup with automatic failover.
+      - generic [ref=e35]:
+        - heading "📉 Smart Deal Detection" [level=4] [ref=e36]
+        - paragraph [ref=e37]: Flash sales ≥50% off, mistake fares ≥70% off using price history analysis.
+      - generic [ref=e38]:
+        - heading "🤖 Telegram Alerts" [level=4] [ref=e39]
+        - paragraph [ref=e40]: Instant notifications with direct booking links to Telegram.
+      - generic [ref=e41]:
+        - heading "💾 Smart Caching" [level=4] [ref=e42]
+        - paragraph [ref=e43]: 6-hour TTL reduces redundant API calls and costs.
+      - generic [ref=e44]:
+        - heading "🔄 Scheduled Scanning" [level=4] [ref=e45]
+        - paragraph [ref=e46]: 30-min regular sweeps, 15-min mistake fare priority scans.
+      - generic [ref=e47]:
+        - heading "🐳 Docker Ready" [level=4] [ref=e48]
+        - paragraph [ref=e49]: Production Docker Compose with health checks and auto-restart.
+  - generic [ref=e50]:
+    - heading "Tech Stack" [level=2] [ref=e51]
+    - list [ref=e53]:
+      - listitem [ref=e54]:
+        - generic [ref=e55]: Runtime
+        - strong [ref=e56]: Python 3.11+ async
+      - listitem [ref=e57]:
+        - generic [ref=e58]: Framework
+        - strong [ref=e59]: FastAPI + Uvicorn
+      - listitem [ref=e60]:
+        - generic [ref=e61]: Database
+        - strong [ref=e62]: SQLite / PostgreSQL
+      - listitem [ref=e63]:
+        - generic [ref=e64]: APIs
+        - strong [ref=e65]: fli, SearchAPI, Duffel
+      - listitem [ref=e66]:
+        - generic [ref=e67]: Alerts
+        - strong [ref=e68]: Telegram Bot
+      - listitem [ref=e69]:
+        - generic [ref=e70]: Deploy
+        - strong [ref=e71]: Docker + CI/CD
+  - contentinfo [ref=e72]:
+    - paragraph [ref=e73]:
+      - text: Flight Deal Monitor v1.0.0 |
+      - link "GitHub" [ref=e74] [cursor=pointer]:
+        - /url: https://github.com/bigknoxy/flight-deal-monitor
