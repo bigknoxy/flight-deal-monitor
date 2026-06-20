@@ -6,6 +6,29 @@
 
 Automated flight deal monitoring and alerting system that searches for flash sales and mistake fares, sending real-time alerts via Telegram.
 
+## QUICKSTART
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp config/.env.example .env   # then edit .env with your API keys
+
+# Run the app
+python -m app.main             # starts on http://localhost:8000
+
+# Run tests
+pytest tests/ -v
+
+# Lint
+ruff check app/ tests/
+
+# Docker
+docker-compose up -d           # starts containerized app
+curl http://localhost:8000/health  # verify health
+```
+
 ## Features ✨
 
 - **Route Monitoring**: Continuous monitoring of flight prices from home airports to destinations

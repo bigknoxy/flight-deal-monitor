@@ -1,0 +1,36 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - navigation [ref=e4]:
+      - link "HOME" [ref=e5] [cursor=pointer]:
+        - /url: index.html
+      - link "ARCH" [ref=e6] [cursor=pointer]:
+        - /url: ARCHITECTURE.html
+      - link "DOCS" [ref=e7] [cursor=pointer]:
+        - /url: docs.html
+    - heading "🏗️ Architecture" [level=1] [ref=e8]
+  - generic [ref=e9]:
+    - heading "System Overview" [level=2] [ref=e10]
+    - generic [ref=e12]: ╔═ Flight Deal Monitor Architecture ═╗ ┌───────┐ ┌───────┐ ┌───────┐ │ fli │──▶│SearchAPI│──▶│ Duffel │ │PRIMARY│ │FALLBACK│ │ BACKUP│ │ FREE │ │ $4/1K │ │Air API │ └───────┘ └───────┘ └───────┘ │ │ │ └────────────┴────────────┘ │ ▼ ┌──────────────────────┐ │ _scan_route │ │ (scheduler_jobs) │ └──────────────────────┘ │ ▼ ┌──────────────────────┐ │ detect_deal │ │ (price_analysis) │ └──────────────────────┘ │ ┌────────────┬────────────┬────────────┐ ▼ ▼ ▼ ┌──────┐ ┌──────┐ ┌──────┐ │cache │ │telegram│ │ store │ └──────┘ └──────┘ └──────┘
+  - generic [ref=e13]:
+    - heading "API Flow Priority" [level=2] [ref=e14]
+    - generic [ref=e15]:
+      - generic [ref=e16]: fli (PRIMARY)
+      - generic [ref=e17]: →
+      - generic [ref=e18]: SearchAPI (FALLBACK)
+      - generic [ref=e19]: →
+      - generic [ref=e20]: Duffel (BACKUP)
+    - paragraph [ref=e21]: Free Google Flights → $4/1K requests → Air Booking API
+  - generic [ref=e22]:
+    - heading "Configuration" [level=2] [ref=e23]
+    - generic [ref=e24]: "mistake_fare_threshold: 0.70 # ≥70% below median flash_sale_threshold: 0.50 # ≥50% below median cache_ttl_minutes: 360 # 6 hours regular_sweep_interval: 1800 # 30 min mistake_sweep_interval: 900 # 15 min"
+  - generic [ref=e25]:
+    - heading "Database Schema" [level=2] [ref=e26]
+    - generic [ref=e27]: "FlightDeal: route_id: str origin/destination/date airline: str flight_numbers: str current_price_usd: float price_drop_percent: float deal_type: str booking_url: str"
+  - contentinfo [ref=e28]:
+    - paragraph [ref=e29]:
+      - text: Flight Deal Monitor v1.0.0 |
+      - link "Home" [ref=e30] [cursor=pointer]:
+        - /url: index.html
+      - text: "|"
+      - link "Docs" [ref=e31] [cursor=pointer]:
+        - /url: docs.html

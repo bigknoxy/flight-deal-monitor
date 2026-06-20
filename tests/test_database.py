@@ -1,6 +1,6 @@
 """Test database module — engine config, init, close."""
 
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -37,7 +37,6 @@ class TestGetSession:
     @pytest.mark.asyncio
     async def test_get_session_yields_async_session(self):
         """get_session yields an AsyncSession (verify via type contract)."""
-        from sqlalchemy.ext.asyncio import AsyncSession
 
         class FakeSession:
             """Minimal session stub for testing get_session."""

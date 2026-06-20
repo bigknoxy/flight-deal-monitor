@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.config import config
 from app.scheduler_jobs import run_mistake_sweep, run_regular_sweep
 
 
