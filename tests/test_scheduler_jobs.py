@@ -1,7 +1,9 @@
 """Test scheduler job implementations."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
+
+from app.scheduler_jobs import run_cleanup
 
 
 def test_scan_route_uses_searchapi():
@@ -29,8 +31,6 @@ def test_run_cleanup():
     with patch("app.scheduler_jobs.AsyncSessionLocal", return_value=mock_session):
         with patch("app.scheduler_jobs.cleanup_expired_deals") as mock_cleanup:
             mock_cleanup.return_value = 5
-            from app.scheduler_jobs import run_cleanup
-            import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
