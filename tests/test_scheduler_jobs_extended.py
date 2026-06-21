@@ -21,6 +21,7 @@ class TestJobRunLifecycle:
     async def test_start_job_run_creates_record(self):
         """_start_job_run must create a JobRun and return it."""
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.commit = AsyncMock()
         mock_session.refresh = AsyncMock()
 
@@ -43,6 +44,7 @@ class TestJobRunLifecycle:
             started_at=datetime(2024, 6, 1, 12, 0, 0),
         )
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.__aenter__.return_value = mock_session
 
         with patch("app.scheduler_jobs.AsyncSessionLocal", return_value=mock_session):
@@ -65,6 +67,7 @@ class TestJobRunLifecycle:
             started_at=datetime(2024, 6, 1, 12, 0, 0),
         )
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.__aenter__.return_value = mock_session
 
         with patch("app.scheduler_jobs.AsyncSessionLocal", return_value=mock_session):
@@ -85,6 +88,7 @@ class TestJobRunLifecycle:
             started_at=datetime(2024, 6, 1, 12, 0, 0),
         )
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.__aenter__.return_value = mock_session
 
         with patch("app.scheduler_jobs.AsyncSessionLocal", return_value=mock_session):
@@ -100,7 +104,9 @@ class TestScanRouteFallbackChain:
 
     @pytest.fixture
     def mock_session(self):
-        return AsyncMock()
+        mock = AsyncMock()
+        mock.add = MagicMock()
+        return mock
 
     @pytest.mark.asyncio
     async def test_scan_route_returns_early_if_recently_seen(self, mock_session):

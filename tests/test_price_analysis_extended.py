@@ -4,7 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.utils.price_analysis import calculate_median_price, detect_deal
+from app.utils.price_analysis import (
+    apply_route_multiplier,
+    calculate_median_price,
+    detect_deal,
+    get_route_type,
+)
 
 
 class TestCalculateMedianPrice:
@@ -88,11 +93,11 @@ class TestDetectDealBoundaries:
         assert deal_type is None
 
     def test_mistake_fare_borderline(self):
-        """69.9% off = flash sale, not mistake fare."""
+        """69.9% off = deep_flash, not mistake fare."""
         # (500 - x) / 500 = 0.699  =>  x = 150.5
         is_deal, deal_type = detect_deal(150.5, 500.0)
         assert is_deal is True
-        assert deal_type == "flash_sale"
+        assert deal_type == "deep_flash"
 
     def test_deal_with_very_high_price(self):
         """10x median price, not a deal."""
@@ -134,3 +139,67 @@ class TestCalculatePriceDropExtended:
         drop = calculate_price_drop(1.0, 0.01)
         # ((0.01 - 1.0) / 0.01) * 100 = -9900
         assert drop == -9900.0
+
+
+class TestGetRouteType:
+    """Route classification tests."""
+
+    def test_get_route_type_domestic(self):
+        assert get_route_type("JFK", "LAX") == "domestic"
+
+    def test_get_route_type_transatlantic(self):
+        assert get_route_type("JFK", "LHR") == "transatlantic"
+
+    def test_get_route_type_transpacific(self):
+        assert get_route_type("SFO", "NRT") == "transpacific"
+
+    def test_get_route_type_latin_america(self):
+        assert get_route_type("MIA", "SJO") == "latin_america"
+
+    def test_get_route_type_europe(self):
+        assert get_route_type("CDG", "FRA") == "europe"
+
+    def test_get_route_type_reverse_transatlantic(self):
+        assert get_route_type("LHR", "JFK") == "transatlantic"
+
+    def test_get_route_type_reverse_transpacific(self):
+        assert get_route_type("NRT", "LAX") == "transpacific"
+
+    def test_get_route_type_reverse_latin_america(self):
+        assert get_route_type("SJO", "MIA") == "latin_america"
+
+    def test_get_route_type_reverse_fallback(self):
+        assert get_route_type("LHR", "CDG") == "europe"
+
+    def test_get_route_type_fallback_domestic(self):
+        assert get_route_type("SYD", "JFK") == "domestic"
+
+
+class TestApplyRouteMultiplier:
+    """Route multiplier application tests."""
+
+    def test_apply_route_multiplier_domestic(self):
+        result = apply_route_multiplier(500.0, "JFK", "LAX")
+        assert result == 500.0
+
+    def test_apply_route_multiplier_transatlantic(self):
+        result = apply_route_multiplier(500.0, "JFK", "LHR")
+        assert result == 400.0
+
+    def test_apply_route_multiplier_transpacific(self):
+        result = apply_route_multiplier(500.0, "NRT", "LAX")
+        assert result == 350.0
+
+
+class TestDetectDealWithRouteMultiplier:
+    """detect_deal with optional origin/destination parameters."""
+
+    def test_detect_deal_with_route_multiplier(self):
+        is_deal, deal_type = detect_deal(120.0, 400.0, "JFK", "LHR")
+        assert is_deal is True
+        assert deal_type == "flash_sale"
+
+    def test_detect_deal_without_route_multiplier(self):
+        is_deal, deal_type = detect_deal(250.0, 500.0)
+        assert is_deal is True
+        assert deal_type == "flash_sale"
