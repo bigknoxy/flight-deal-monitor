@@ -3,8 +3,10 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
@@ -12,12 +14,15 @@ from app.alert import telegram_bot
 from app.config import config
 from app.database import AsyncSessionLocal, close_db, init_db
 from app.models.flight import FlightDeal
+from app.routes.auth import router as auth_router
+from app.routes.dashboard import router as dashboard_router
 from app.scheduler import (
     get_scheduler_status,
     setup_jobs,
     shutdown_scheduler,
     start_scheduler,
 )
+from app.utils.price_analysis import get_price_history
 
 # Configure logging
 logging.basicConfig(
@@ -54,6 +59,11 @@ app = FastAPI(
     version=config.app.version,
     lifespan=lifespan,
 )
+
+# Mount static files and dashboard routes
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+app.include_router(auth_router)
+app.include_router(dashboard_router)
 
 
 class HealthResponse(BaseModel):
@@ -108,6 +118,14 @@ async def get_config() -> dict:
                 "enabled": config.app.long_weekend.enabled,
                 "interval_minutes": config.app.long_weekend.interval_minutes,
                 "look_ahead_months": config.app.long_weekend.look_ahead_months,
+            },
+            "flexible_dates": {
+                "enabled": config.app.flexible_dates.enabled,
+                "range_days": config.app.flexible_dates.range_days,
+            },
+            "multi_city": {
+                "enabled": config.app.multi_city.enabled,
+                "max_stops": config.app.multi_city.max_stops,
             },
         },
         "env": {
@@ -201,6 +219,17 @@ async def deal_stats() -> dict:
             "by_type": by_type,
             "top_routes": top_routes,
         }
+
+
+@app.get("/deals/history", response_model=dict)
+async def deal_price_history(
+    origin: str,
+    destination: str,
+    days: int = 90,
+) -> dict:
+    """Get price history for a route."""
+    async with AsyncSessionLocal() as session:
+        return await get_price_history(session, origin.upper(), destination.upper(), days)
 
 
 @app.get("/deals/{deal_id}", response_model=dict)

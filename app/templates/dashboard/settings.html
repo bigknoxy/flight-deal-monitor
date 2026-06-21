@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Flight Deal Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Settings</h2>
+    <p>Current application configuration (read-only)</p>
+</div>
+
+<div class="card">
+    <div class="card-header">Application</div>
+    <div class="settings-row">
+        <span class="settings-label">Name</span>
+        <span class="settings-value">{{ config_info.app.name }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Version</span>
+        <span class="settings-value">{{ config_info.app.version }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Home Airports</span>
+        <span class="settings-value">{{ config_info.app.home_airports|join(', ') }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Destinations</span>
+        <span class="settings-value">{{ config_info.app.destinations|length }} configured</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Deal Thresholds</div>
+    {% set thresholds = config_info.app.deal_thresholds %}
+    <div class="settings-row">
+        <span class="settings-label">Mistake Fare (70%+)</span>
+        <span class="settings-value">{{ "%.0f"|format(thresholds.mistake_fare_percent * 100) }}%</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Deep Flash (65%+)</span>
+        <span class="settings-value">{{ "%.0f"|format(thresholds.deep_flash_percent * 100) }}%</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Flash Sale (50%+)</span>
+        <span class="settings-value">{{ "%.0f"|format(thresholds.flash_sale_percent * 100) }}%</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Sweep Intervals</div>
+    <div class="settings-row">
+        <span class="settings-label">Regular Sweep</span>
+        <span class="settings-value">Every {{ (config_info.app.regular_sweep_interval / 60)|int }} minutes</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Mistake Fare Sweep</span>
+        <span class="settings-value">Every {{ (config_info.app.mistake_sweep_interval / 60)|int }} minutes</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Job Coalesce</span>
+        <span class="settings-value">{{ config_info.app.job_coalesce|string }}</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Route Multipliers</div>
+    {% set multipliers = config_info.app.route_multipliers %}
+    <div class="settings-row">
+        <span class="settings-label">Domestic</span>
+        <span class="settings-value">{{ multipliers.domestic }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Transatlantic</span>
+        <span class="settings-value">{{ multipliers.transatlantic }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Transpacific</span>
+        <span class="settings-value">{{ multipliers.transpacific }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Latin America</span>
+        <span class="settings-value">{{ multipliers.latin_america }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Europe</span>
+        <span class="settings-value">{{ multipliers.europe }}</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Cache Settings</div>
+    <div class="settings-row">
+        <span class="settings-label">Cache TTL</span>
+        <span class="settings-value">{{ config_info.app.cache_ttl_minutes }} minutes</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Max Results Per Route</span>
+        <span class="settings-value">{{ config_info.app.max_results_per_route }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Look Ahead Days</span>
+        <span class="settings-value">{{ config_info.app.look_ahead_days }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Min Price (USD)</span>
+        <span class="settings-value">${{ config_info.app.min_price_usd }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Max Alerts/Hour</span>
+        <span class="settings-value">{{ config_info.app.max_alerts_per_hour }}</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Environment</div>
+    {% set env = config_info.env %}
+    <div class="settings-row">
+        <span class="settings-label">Amadeus Environment</span>
+        <span class="settings-value">{{ env.amadeus_env }}</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Log Level</span>
+        <span class="settings-value">{{ env.log_level }}</span>
+    </div>
+</div>
+
+<div style="text-align: center; margin-top: 1.5rem; padding: 1rem; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border);">
+    Settings are managed via <code>config/app.yaml</code>. Restart the server after making changes.
+</div>
+{% endblock %}

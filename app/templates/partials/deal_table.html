@@ -1,0 +1,35 @@
+<table>
+    <thead>
+        <tr>
+            <th>Route</th>
+            <th>Date</th>
+            <th>Airline</th>
+            <th>Original</th>
+            <th>Current</th>
+            <th>Drop</th>
+            <th>Type</th>
+            <th>Link</th>
+        </tr>
+    </thead>
+    <tbody id="deals-tbody">
+        {% for deal in deals.deals %}
+        {% include "partials/deal_row.html" %}
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if deals.total > deals.limit %}
+<div class="pagination-container" id="pagination-container">
+    {% set remaining = deals.total - deals.offset - deals.deals|length %}
+    {% if remaining > 0 %}
+    <button class="load-more"
+            hx-get="/dashboard/deals/partial?offset={{ deals.offset + deals.limit }}&limit={{ deals.limit }}{% if filters.deal_type %}&deal_type={{ filters.deal_type }}{% endif %}{% if filters.origin %}&origin={{ filters.origin }}{% endif %}{% if filters.destination %}&destination={{ filters.destination }}{% endif %}"
+            hx-target="#deals-tbody"
+            hx-swap="beforeend"
+            hx-indicator="#loading-indicator">
+        Load More ({{ remaining }} remaining)
+    </button>
+    <div id="loading-indicator" class="htmx-indicator" style="padding: 0.5rem; color: var(--text-muted);">Loading&hellip;</div>
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Flight Deal Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Dashboard</h2>
+    <p>Overview of your flight deal monitoring system</p>
+</div>
+
+{% if not config.destinations %}
+<div class="empty-state">
+    <div class="icon">&#9992;</div>
+    <h3>No routes configured yet</h3>
+    <p>Add your first destination to start monitoring for flight deals. Go to Routes to configure destinations.</p>
+    <a href="/dashboard/routes" class="btn btn-primary" style="margin-top: 1rem;">Add Routes</a>
+</div>
+{% else %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Deals</div>
+        <div class="stat-value">{{ stats.total_deals }}</div>
+        <div class="stat-sub">
+            {% if stats.by_type %}
+                {{ stats.by_type.get('mistake_fare', 0) }} mistake,
+                {{ stats.by_type.get('flash_sale', 0) }} flash,
+                {{ stats.by_type.get('deep_flash', 0) }} deep
+            {% else %}
+                No deals detected yet
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Active Routes</div>
+        <div class="stat-value">{{ config.destinations|length }}</div>
+        <div class="stat-sub">From {{ config.home_airports|join(', ') }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Scheduler</div>
+        <div class="stat-value" style="color: {% if scheduler.running %}#2ed573{% else %}#ff4757{% endif %}">
+            {% if scheduler.running %}Running{% else %}Stopped{% endif %}
+        </div>
+        <div class="stat-sub">{{ scheduler.job_count }} job(s) configured</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Last Sweep</div>
+        <div class="stat-value">
+            {% if last_job %}
+                {% if last_job.duration_seconds %}
+                    {{ "%.1f"|format(last_job.duration_seconds) }}s
+                {% else %}
+                    &mdash;
+                {% endif %}
+            {% else %}
+                &mdash;
+            {% endif %}
+        </div>
+        <div class="stat-sub">
+            {% if last_job %}
+                {% if last_job.status == 'success' %}
+                    <span class="status-badge success">Success</span>
+                    &middot; {{ last_job.deals_detected }} deals
+                {% elif last_job.status == 'failed' %}
+                    <span class="status-badge failed">Failed</span>
+                {% else %}
+                    <span class="status-badge running">Running</span>
+                {% endif %}
+            {% else %}
+                No sweeps yet
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Routes Overview</div>
+    {% if not route_deals %}
+    <div class="empty-state" style="padding: 1.5rem;">
+        <p>No deals detected yet. Deals appear here when price drops are found.</p>
+    </div>
+    {% else %}
+    <div class="route-grid">
+        {% for rd in route_deals %}
+        <div class="route-card">
+            <div class="route-name">{{ rd.origin }} &rarr; {{ rd.destination }}</div>
+            <div class="route-meta">
+                <span class="route-price">${{ "%.0f"|format(rd.current_price) }}</span>
+                <span class="route-trend {% if rd.trend == 'up' %}up{% elif rd.trend == 'down' %}down{% else %}flat{% endif %}">
+                    {% if rd.trend == 'up' %}&uarr;{% elif rd.trend == 'down' %}&darr;{% else %}&rarr;{% endif %}
+                </span>
+            </div>
+            <div class="route-detail">
+                {{ rd.airline }} &middot; {{ rd.deal_type }}
+                {% if rd.price_drop > 0 %}
+                    &middot; <span class="price-drop positive">-{{ "%.0f"|format(rd.price_drop) }}%</span>
+                {% endif %}
+            </div>
+            <div class="route-detail" style="margin-top: 0.3rem;">
+                {% if rd.last_checked %}
+                    Last: {{ rd.last_checked }}
+                {% else %}
+                    Not checked yet
+                {% endif %}
+                {% if rd.deal_count > 0 %}
+                    &middot; <span class="route-badge">{{ rd.deal_count }} deal{% if rd.deal_count != 1 %}s{% endif %}</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-header">Scheduled Jobs</div>
+    {% if scheduler.jobs %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Job</th>
+                    <th>ID</th>
+                    <th>Next Run</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in scheduler.jobs %}
+                <tr>
+                    <td><strong>{{ job.name }}</strong></td>
+                    <td style="color: var(--text-muted); font-family: monospace; font-size: 0.8rem;">{{ job.id }}</td>
+                    <td>{{ job.next_run or 'N/A' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 1.5rem;">
+        <p>No scheduled jobs configured.</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

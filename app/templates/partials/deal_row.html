@@ -1,0 +1,16 @@
+<tr>
+    <td><strong>{{ deal.origin }}</strong> &rarr; <strong>{{ deal.destination }}</strong></td>
+    <td style="white-space: nowrap;">{{ deal.departure_date }}</td>
+    <td>{{ deal.airline }}</td>
+    <td><span class="original-price">${{ "%.0f"|format(deal.original_price_usd) }}</span></td>
+    <td><strong>${{ "%.0f"|format(deal.current_price_usd) }}</strong></td>
+    <td><span class="price-drop positive">-{{ "%.1f"|format(deal.price_drop_percent) }}%</span></td>
+    <td><span class="deal-badge {{ deal.deal_type }}">{{ deal.deal_type|replace('_', ' ') }}</span></td>
+    <td>
+        {% if deal.booking_url %}
+        <a href="{{ deal.booking_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-primary">Book</a>
+        {% else %}
+        <span style="color: var(--text-muted); font-size: 0.75rem;">N/A</span>
+        {% endif %}
+    </td>
+</tr>

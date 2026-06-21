@@ -1,0 +1,15 @@
+<div class="route-card">
+    <div class="route-name">{{ origin }} &rarr; {{ destination }}</div>
+    <div class="route-meta">
+        <span class="route-price">{% if lowest_price %}${{ "%.0f"|format(lowest_price) }}{% else %}&mdash;{% endif %}</span>
+        <span class="route-trend {{ trend_class }}">
+            {% if trend == 'up' %}&uarr;{% elif trend == 'down' %}&darr;{% else %}&rarr;{% endif %}
+        </span>
+    </div>
+    <div class="route-detail">
+        {% if last_checked %}Last: {{ last_checked }}{% else %}Not checked yet{% endif %}
+        {% if deal_count > 0 %}
+            &middot; <span class="route-badge">{{ deal_count }} deal{% if deal_count != 1 %}s{% endif %}</span>
+        {% endif %}
+    </div>
+</div>

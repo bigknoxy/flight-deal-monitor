@@ -7,12 +7,17 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
 from app.config import config
+from app.utils.database_url import get_async_database_url
 
 # Create async engine
-engine = create_async_engine(
-    config.env.database_url.replace("sqlite://", "sqlite+aiosqlite://"),
-    echo=config.env.log_level == "DEBUG",
-)
+database_url = get_async_database_url(config.env.database_url)
+engine_kwargs: dict = {"echo": config.env.log_level == "DEBUG"}
+if config.env.database_url.startswith(("postgresql://", "postgres://")):
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_pre_ping"] = True
+
+engine = create_async_engine(database_url, **engine_kwargs)
 
 # Create async session factory
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

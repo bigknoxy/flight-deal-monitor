@@ -4,7 +4,7 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config
@@ -133,3 +133,93 @@ def calculate_price_drop(current_price: float, median_price: float) -> float:
     if median_price == 0:
         return 0.0
     return ((median_price - current_price) / median_price) * 100
+
+
+async def get_price_history(
+    session: AsyncSession,
+    origin: str,
+    destination: str,
+    days: int = 90,
+) -> dict:
+    """Get price history for a route over the last N days."""
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    query = (
+        select(
+            func.date(FlightDeal.seen_at).label("date"),
+            func.avg(FlightDeal.original_price_usd).label("median_price"),
+            func.min(FlightDeal.current_price_usd).label("lowest_price"),
+            func.count().label("sample_count"),
+        )
+        .where(FlightDeal.origin == origin)
+        .where(FlightDeal.destination == destination)
+        .where(FlightDeal.seen_at >= cutoff)
+        .group_by(func.date(FlightDeal.seen_at))
+        .order_by(func.date(FlightDeal.seen_at))
+    )
+
+    result = await session.execute(query)
+    rows = result.all()
+
+    history = [
+        {
+            "date": str(row.date),
+            "median_price": float(row.median_price),
+            "lowest_price": float(row.lowest_price),
+            "sample_count": row.sample_count,
+        }
+        for row in rows
+    ]
+
+    if not history:
+        return {
+            "route": f"{origin}-{destination}",
+            "days": days,
+            "data_points": 0,
+            "history": [],
+            "current_median": None,
+            "trend": "flat",
+            "trend_percent": 0.0,
+        }
+
+    current_median = history[-1]["median_price"]
+
+    if len(history) < 2:
+        return {
+            "route": f"{origin}-{destination}",
+            "days": days,
+            "data_points": len(history),
+            "history": history,
+            "current_median": current_median,
+            "trend": "flat",
+            "trend_percent": 0.0,
+        }
+
+    midpoint = len(history) // 2
+    first_half = history[:midpoint]
+    second_half = history[midpoint:]
+
+    older_avg = sum(d["median_price"] for d in first_half) / len(first_half)
+    recent_avg = sum(d["median_price"] for d in second_half) / len(second_half)
+
+    if older_avg == 0:
+        trend_percent = 0.0
+    else:
+        trend_percent = ((recent_avg - older_avg) / older_avg) * 100
+
+    if trend_percent > 5:
+        trend = "up"
+    elif trend_percent < -5:
+        trend = "down"
+    else:
+        trend = "flat"
+
+    return {
+        "route": f"{origin}-{destination}",
+        "days": days,
+        "data_points": len(history),
+        "history": history,
+        "current_median": current_median,
+        "trend": trend,
+        "trend_percent": round(trend_percent, 2),
+    }

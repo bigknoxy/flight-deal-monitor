@@ -12,6 +12,7 @@ from app.utils.price_analysis import (
     calculate_price_drop,
     detect_deal,
     generate_route_id,
+    get_price_history,
     get_route_type,
 )
 
@@ -21,6 +22,7 @@ __all__ = [
     "calculate_price_drop",
     "detect_deal",
     "generate_route_id",
+    "get_price_history",
     "get_route_type",
     "cleanup_expired_deals",
     "generate_deal_hash",

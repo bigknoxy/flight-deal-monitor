@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Deals - Flight Deal Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Flight Deals</h2>
+    <p>All detected price drops and deals</p>
+</div>
+
+{% if deals.total == 0 and not deals.deals %}
+<div class="empty-state">
+    <div class="icon">&#128230;</div>
+    <h3>No deals detected yet</h3>
+    <p>Deals appear here when price drops are found. Make sure your scheduler is running and routes are configured.</p>
+</div>
+{% else %}
+
+<form class="filter-bar" method="get" action="/dashboard/deals">
+    <div class="form-group">
+        <label for="deal_type">Deal Type</label>
+        <select name="deal_type" id="deal_type" class="form-select"
+                hx-get="/dashboard/deals"
+                hx-target="#deals-table-container"
+                hx-trigger="change"
+                hx-include=".filter-param">
+            <option value="">All Types</option>
+            <option value="mistake_fare" {% if filters.deal_type == 'mistake_fare' %}selected{% endif %}>Mistake Fare</option>
+            <option value="flash_sale" {% if filters.deal_type == 'flash_sale' %}selected{% endif %}>Flash Sale</option>
+            <option value="deep_flash" {% if filters.deal_type == 'deep_flash' %}selected{% endif %}>Deep Flash</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="origin">Origin</label>
+        <input type="text" name="origin" id="origin" class="form-input filter-param"
+               placeholder="e.g. MCI" value="{{ filters.origin or '' }}"
+               hx-get="/dashboard/deals"
+               hx-target="#deals-table-container"
+               hx-trigger="change delay:300ms"
+               hx-include=".filter-param">
+    </div>
+    <div class="form-group">
+        <label for="destination">Destination</label>
+        <input type="text" name="destination" id="destination" class="form-input filter-param"
+               placeholder="e.g. LHR" value="{{ filters.destination or '' }}"
+               hx-get="/dashboard/deals"
+               hx-target="#deals-table-container"
+               hx-trigger="change delay:300ms"
+               hx-include=".filter-param">
+    </div>
+    <button type="submit" class="btn btn-primary" style="margin-top: auto;">Filter</button>
+</form>
+
+<div id="deals-table-container">
+    {% include "partials/deal_table.html" %}
+</div>
+{% endif %}
+{% endblock %}
