@@ -38,8 +38,8 @@ class TestAlembicImports:
     @pytest.mark.skip(reason="Requires database connection")
     def test_alembic_can_generate_migration(self):
         """Alembic can generate a migration (opt-in, requires database)."""
-        from alembic import command
-        from alembic.config import Config  # noqa: I001
+        from alembic import command  # noqa: I001
+        from alembic.config import Config
 
         cfg = Config("alembic.ini")
         command.revision(cfg, autogenerate=True, message="test_migration")
