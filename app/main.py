@@ -5,7 +5,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -75,14 +76,10 @@ class HealthResponse(BaseModel):
     job_count: int
 
 
-@app.get("/", response_model=dict)
-async def root() -> dict:
-    """Root endpoint."""
-    return {
-        "name": config.app.name,
-        "version": config.app.version,
-        "description": "Automated flight deal monitoring and alerting system",
-    }
+@app.get("/")
+async def root() -> RedirectResponse:
+    """Root endpoint redirects to dashboard."""
+    return RedirectResponse(url="/dashboard")
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -135,15 +132,23 @@ async def get_config() -> dict:
     }
 
 
+VALID_DEAL_TYPES = {"mistake_fare", "flash_sale", "deep_flash"}
+
+
 @app.get("/deals", response_model=dict)
 async def list_deals(
-    limit: int = 20,
-    offset: int = 0,
-    deal_type: str | None = None,
-    origin: str | None = None,
-    destination: str | None = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    deal_type: str | None = Query(None),
+    origin: str | None = Query(None),
+    destination: str | None = Query(None),
 ) -> dict:
     """List recent flight deals with optional filtering."""
+    if deal_type and deal_type not in VALID_DEAL_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid deal_type '{deal_type}'. Must be one of: {', '.join(sorted(VALID_DEAL_TYPES))}",
+        )
     async with AsyncSessionLocal() as session:
         query = select(FlightDeal).order_by(FlightDeal.seen_at.desc())
 
@@ -223,9 +228,9 @@ async def deal_stats() -> dict:
 
 @app.get("/deals/history", response_model=dict)
 async def deal_price_history(
-    origin: str,
-    destination: str,
-    days: int = 90,
+    origin: str = Query(...),
+    destination: str = Query(...),
+    days: int = Query(90, ge=1, le=365),
 ) -> dict:
     """Get price history for a route."""
     async with AsyncSessionLocal() as session:

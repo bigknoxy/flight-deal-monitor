@@ -60,7 +60,7 @@ async def test_is_flight_seen_recently_true():
         mock_session = AsyncMock()
         mock_session_cls.return_value = mock_session
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = FlightDeal(
             route_id="test_route",
             origin="MCI",
@@ -91,7 +91,7 @@ async def test_is_flight_seen_recently_false():
         mock_session = AsyncMock()
         mock_session_cls.return_value = mock_session
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
 
         mock_session.execute.return_value = mock_result
@@ -123,7 +123,7 @@ async def test_cleanup_expired_deals():
             expired_at=datetime.utcnow() - timedelta(hours=1),
         )
 
-        mock_scalars_result = AsyncMock()
+        mock_scalars_result = MagicMock()
         mock_scalars_result.all.return_value = [expired_deal]
 
         mock_result = MagicMock()

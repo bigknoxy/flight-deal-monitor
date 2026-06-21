@@ -51,7 +51,7 @@ async def is_flight_seen_recently(
     )
 
     result = await session.execute(query)
-    return await result.scalar_one_or_none() is not None
+    return result.scalar_one_or_none() is not None
 
 
 async def cleanup_expired_deals(
@@ -60,7 +60,7 @@ async def cleanup_expired_deals(
     """Clean up expired flight deals from database."""
     query = select(FlightDeal).where(FlightDeal.expired_at < datetime.utcnow())
     result = await session.execute(query)
-    expired_deals = await result.scalars().all()
+    expired_deals = result.scalars().all()
 
     count = 0
     for deal in expired_deals:
