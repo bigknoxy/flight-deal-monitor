@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Flight Deal Monitor{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="/static/js/dashboard.js" defer></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation">&#9776;</button>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>&#9992; Deal Monitor</h1>
+            <div class="version">v{{ config_version }}</div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/dashboard" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                <span class="nav-icon">&#9632;</span> Dashboard
+            </a>
+            <a href="/dashboard/deals" class="nav-item {% if active_page == 'deals' %}active{% endif %}">
+                <span class="nav-icon">&#9776;</span> Deals
+            </a>
+            <a href="/dashboard/routes" class="nav-item {% if active_page == 'routes' %}active{% endif %}">
+                <span class="nav-icon">&#8592;&#8594;</span> Routes
+            </a>
+            <a href="/dashboard/history" class="nav-item {% if active_page == 'history' %}active{% endif %}">
+                <span class="nav-icon">&#8635;</span> History
+            </a>
+            <a href="/dashboard/settings" class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                <span class="nav-icon">&#9881;</span> Settings
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

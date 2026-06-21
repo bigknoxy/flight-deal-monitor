@@ -33,6 +33,20 @@ class LongWeekendConfig(BaseSettings):
     look_ahead_months: int = 12
 
 
+class FlexibleDatesConfig(BaseSettings):
+    """Flexible date range search configuration."""
+
+    enabled: bool = False
+    range_days: int = 3
+
+
+class MultiCityConfig(BaseSettings):
+    """Multi-city route search configuration."""
+
+    enabled: bool = False
+    max_stops: int = 2
+
+
 class AppConfig(BaseSettings):
     """Application configuration from YAML file."""
 
@@ -65,6 +79,8 @@ class AppConfig(BaseSettings):
     deal_thresholds: DealThresholds = DealThresholds()
     route_multipliers: RouteMultipliers = RouteMultipliers()
     long_weekend: LongWeekendConfig = LongWeekendConfig()
+    flexible_dates: FlexibleDatesConfig = FlexibleDatesConfig()
+    multi_city: MultiCityConfig = MultiCityConfig()
 
     max_results_per_route: int = 10
     look_ahead_days: int = 90
@@ -78,6 +94,8 @@ class AppConfig(BaseSettings):
     job_coalesce: bool = True
 
     cache_ttl_minutes: int = 360
+
+    secret_key: str = "change-me-in-production"
 
     @classmethod
     def from_yaml(cls, path: str = "config/app.yaml") -> "AppConfig":
@@ -117,6 +135,20 @@ class EnvConfig(BaseSettings):
     # Telegram
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+
+    # Email (SMTP)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    email_from: str = ""
+    email_to: str = ""
+
+    # Slack (optional)
+    slack_webhook_url: str = ""
+
+    # Discord (optional)
+    discord_webhook_url: str = ""
 
     # Database
     database_url: str = "sqlite:///./flight_deals.db"

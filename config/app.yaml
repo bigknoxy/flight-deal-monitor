@@ -55,3 +55,13 @@ app:
     enabled: false
     interval_minutes: 60          # Every hour
     look_ahead_months: 12        # Up to 12 months out
+
+  # Flexible date range search (opt-in)
+  flexible_dates:
+    enabled: false
+    range_days: 3
+
+  # Multi-city route search (opt-in)
+  multi_city:
+    enabled: false
+    max_stops: 2

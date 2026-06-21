@@ -13,6 +13,9 @@ from app.config import config
 from app.database import AsyncSessionLocal
 from app.models.flight import AlertHistory, FlightDeal
 from app.models.job import JobRun
+from app.notifiers.discord import discord_notifier
+from app.notifiers.email import email_notifier
+from app.notifiers.slack import slack_notifier
 from app.scrapers.fli_client import FLIClient
 from app.utils.deduplication import (
     cleanup_expired_deals,
@@ -128,11 +131,30 @@ async def _send_deal_alert(
     session: AsyncSession,
     deal: FlightDeal,
 ) -> tuple[int, int]:
-    """Send a Telegram alert for a deal and record it in AlertHistory.
+    """Send alerts to all configured notifiers and record in AlertHistory.
 
     Returns (deals_detected, alerts_sent) counts.
     """
-    telegram_message_id = await telegram_bot.send_alert(deal)
+    telegram_result, email_result, slack_result, discord_result = await asyncio.gather(
+        telegram_bot.send_alert(deal),
+        email_notifier.send_alert(deal),
+        slack_notifier.send_alert(deal),
+        discord_notifier.send_alert(deal),
+        return_exceptions=True,
+    )
+
+    if isinstance(email_result, Exception):
+        logger.warning(f"Email alert failed: {email_result}")
+    elif email_result:
+        logger.info(f"Email alert sent for {deal.route_id}")
+
+    for name, result in [("slack", slack_result), ("discord", discord_result)]:
+        if isinstance(result, BaseException):
+            logger.error(f"{name} notifier failed: {result}")
+        elif result is None:
+            logger.warning(f"{name} notifier skipped (rate-limited or not configured)")
+
+    telegram_message_id = telegram_result if isinstance(telegram_result, str) else None
 
     if telegram_message_id:
         alert = AlertHistory(
@@ -298,8 +320,7 @@ async def _scan_route(
         )
         try:
             lowest_price = min(
-                float(f.get("price", {}).get("total", float("inf")))
-                for f in flights
+                float(f.get("price", {}).get("total", float("inf"))) for f in flights
             )
         except (ValueError, TypeError):
             lowest_price = 0.0

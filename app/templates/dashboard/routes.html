@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Routes - Flight Deal Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Route Management</h2>
+    <p>Configure airport destinations to monitor for deals</p>
+</div>
+
+<div class="card">
+    <div class="card-header">Home Airport</div>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span style="font-size: 0.85rem; color: var(--text-secondary);">Flights from:</span>
+        <span style="font-weight: 600; font-size: 1rem;">
+            {% for ap in config.home_airports %}
+                <span class="chip" style="background: var(--accent); color: #0a0a0f; border-color: var(--accent);">{{ ap }}</span>
+            {% endfor %}
+        </span>
+    </div>
+</div>
+
+<div class="card"
+     x-data="{ removing: null }">
+    <div class="card-header">
+        Destinations
+        <span style="color: var(--text-muted); font-weight: 400; font-size: 0.8rem; margin-left: 0.5rem;">
+            {{ config.destinations|length }} configured
+        </span>
+    </div>
+
+    {% if not config.destinations %}
+    <div class="empty-state" style="padding: 1.5rem;">
+        <h3>No destinations configured</h3>
+        <p>Add airport codes below to start monitoring specific routes.</p>
+    </div>
+    {% else %}
+    <div class="chip-list" id="destination-list">
+        {% for dest in config.destinations %}
+        <div class="chip" id="chip-{{ loop.index0 }}"
+             x-show="removing !== {{ loop.index0 }}"
+             x-transition:leave.duration.300ms>
+            {{ dest }}
+            <form method="post" action="/dashboard/routes/remove"
+                  hx-post="/dashboard/routes/remove"
+                  hx-trigger="submit"
+                  hx-vals='{"index": {{ loop.index0 }}}'
+                  style="display: inline;">
+                <input type="hidden" name="index" value="{{ loop.index0 }}">
+                <button type="submit" class="remove" aria-label="Remove {{ dest }}"
+                        @click="removing = {{ loop.index0 }}; $el.closest('form').requestSubmit()">
+                    &times;
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/dashboard/routes/add"
+          hx-post="/dashboard/routes/add"
+          hx-target="body"
+          style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);"
+          x-data="{ code: '' }">
+        <div class="form-inline">
+            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 160px;">
+                <label for="airport_code">Airport Code</label>
+                <input type="text" id="airport_code" name="airport_code"
+                       class="form-input" placeholder="e.g. CDG"
+                       maxlength="3" style="text-transform: uppercase;"
+                       x-model="code"
+                       @input="code = code.toUpperCase().replace(/[^A-Z]/g, '')"
+                       required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top: 1.25rem;"
+                    :disabled="code.length !== 3">
+                Add Destination
+            </button>
+        </div>
+        {% if error %}
+        <p style="color: var(--danger); font-size: 0.8rem; margin-top: 0.5rem;">{{ error }}</p>
+        {% endif %}
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header">Long Weekend Monitoring</div>
+    <div class="settings-row">
+        <span class="settings-label">Status</span>
+        <span class="settings-value">
+            {% if config.long_weekend.enabled %}
+                <span class="status-badge success">Enabled</span>
+            {% else %}
+                <span class="status-badge" style="background: rgba(90, 98, 116, 0.2); color: var(--text-muted);">Disabled</span>
+            {% endif %}
+        </span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Interval</span>
+        <span class="settings-value">{{ config.long_weekend.interval_minutes }} minutes</span>
+    </div>
+    <div class="settings-row">
+        <span class="settings-label">Look Ahead</span>
+        <span class="settings-value">{{ config.long_weekend.look_ahead_months }} months</span>
+    </div>
+</div>
+{% endblock %}

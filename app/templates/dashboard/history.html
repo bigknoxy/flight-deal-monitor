@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}History - Flight Deal Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Sweep History</h2>
+    <p>Recent job run log</p>
+</div>
+
+{% if not jobs %}
+<div class="empty-state">
+    <div class="icon">&#128337;</div>
+    <h3>No sweep history yet</h3>
+    <p>Job run records appear here after the scheduler performs a sweep.</p>
+</div>
+{% else %}
+
+<div class="card" style="padding: 0;">
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Job</th>
+                    <th>Duration</th>
+                    <th>Deals</th>
+                    <th>Alerts</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr {% if job.status == 'failed' %}style="background: rgba(255, 71, 87, 0.03);"{% endif %}>
+                    <td style="white-space: nowrap;">{{ job.started_at }}</td>
+                    <td><code style="color: var(--text-secondary); font-size: 0.8rem;">{{ job.job_id }}</code></td>
+                    <td>
+                        {% if job.duration_seconds %}
+                            {{ "%.1f"|format(job.duration_seconds) }}s
+                        {% else %}
+                            &mdash;
+                        {% endif %}
+                    </td>
+                    <td>{{ job.deals_detected }}</td>
+                    <td>{{ job.alerts_sent }}</td>
+                    <td>
+                        {% if job.status == 'success' %}
+                            <span class="status-badge success">Success</span>
+                        {% elif job.status == 'failed' %}
+                            <span class="status-badge failed">Failed</span>
+                        {% else %}
+                            <span class="status-badge running">Running</span>
+                        {% endif %}
+                        {% if job.error_message %}
+                            <br><small style="color: var(--danger); font-size: 0.7rem;">{{ job.error_message }}</small>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
