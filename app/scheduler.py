@@ -7,7 +7,7 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import config
-from app.scheduler_jobs import run_mistake_sweep, run_regular_sweep
+from app.scheduler_jobs import run_cleanup, run_mistake_sweep, run_regular_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,16 @@ def setup_jobs() -> None:
         seconds=config.app.mistake_sweep_interval,
         id="mistake_sweep",
         name="Mistake Fare Sweep",
+        replace_existing=True,
+    )
+
+    # Daily cleanup of expired deals
+    scheduler.add_job(
+        run_cleanup,
+        "interval",
+        hours=24,
+        id="cleanup",
+        name="Expired Deal Cleanup",
         replace_existing=True,
     )
 

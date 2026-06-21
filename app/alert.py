@@ -90,6 +90,26 @@ _Deal expires in 24 hours or when inventory runs out_"""
 
         return bool(self.alerts_sent_this_hour >= config.app.max_alerts_per_hour)
 
+    async def send_error_alert(self, message: str) -> bool:
+        """Send error alert to Telegram."""
+        url = f"{self.base_url}/sendMessage"
+        params = {
+            "chat_id": self.chat_id,
+            "text": f"⚠️ *Flight Deal Monitor Error*\n\n{message}",
+            "parse_mode": "MarkdownV2",
+            "disable_web_page_preview": True,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, params=params)
+                response.raise_for_status()
+            logger.info(f"Sent error alert: {message[:50]}...")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send error alert: {e}")
+            return False
+
     async def test_connection(self) -> bool:
         """Test Telegram bot connection."""
         url = f"{self.base_url}/getMe"
