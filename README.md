@@ -485,13 +485,32 @@ For full documentation, see [docs.html](docs.html).
 
 ## Roadmap 🗺️
 
-- [ ] Web UI for managing monitored routes
-- [ ] Multi-city itinerary builder
-- [ ] Points/miles integration and valuation
-- [ ] PostgreSQL support for production
-- [ ] Email alerts (in addition to Telegram)
-- [ ] User authentication and personalized alerts
-- [ ] Historical deal tracking and analytics
+See [FEATURES.md](docs/FEATURES.md) for detailed specs, implementation plans,
+test strategies, and eval suites for each feature.
+
+### Priority Order
+
+1. **Web UI Dashboard** — Jinja2 + HTMX dashboard for route management, deal
+   browsing, sweep history, and config display. No build step, mobile-first.
+2. **Email Alerts** — Parallel notification channel via SMTP/SendGrid. Same
+   deal alert format, adapted for email.
+3. **Price History API + Trends** — Daily median prices per route, trend
+   detection, dashboard charts.
+4. **Slack/Discord Webhooks** — Webhook-based notifiers using existing httpx
+   dependency. ~40 lines each.
+5. **PostgreSQL Support** — Alembic migrations, asyncpg driver, config-driven
+   swap from SQLite.
+6. **Multi-City / Flexible Dates** — Extend long weekend pattern to multi-stop
+   itineraries and ±3 day date ranges.
+7. **User Auth + Personalization** — Multi-user support with per-user routes
+   and notification preferences. Deferred until needed.
+
+### Eval Suite
+
+Each feature includes snapshot-based eval tests using `syrupy` for regression
+detection, plus performance benchmarks using `pytest-benchmark`. The eval suite
+enables a GEPA (Generate → Evaluate → Propose → Adapt) self-improvement loop
+that catches regressions before they ship.
 
 ## Contributing 🤝
 
