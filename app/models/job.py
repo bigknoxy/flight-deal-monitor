@@ -5,20 +5,6 @@ from datetime import datetime
 from sqlmodel import Field, SQLModel
 
 
-class ScheduledJob(SQLModel, table=True):
-    """Scheduled job model for tracking APScheduler jobs."""
-
-    id: int | None = Field(default=None, primary_key=True)
-    job_id: str = Field(index=True, description="APScheduler job ID")
-    job_type: str = Field(description="'regular_sweep' or 'mistake_sweep'")
-    last_run: datetime | None = Field(
-        default=None, description="Last execution time"
-    )
-    next_run: datetime | None = Field(default=None, description="Next scheduled run")
-    status: str = Field(default="active", description="'active', 'paused', or 'failed'")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
 class JobRun(SQLModel, table=True):
     """Job run model for tracking individual job executions."""
 

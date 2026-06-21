@@ -256,7 +256,7 @@ async def _scan_route(
             if price < config.app.min_price_usd:
                 continue
 
-            is_deal, deal_type = detect_deal(price, median_price)
+            is_deal, deal_type = detect_deal(price, median_price, origin, destination)
 
             if is_deal:
                 price_drop = calculate_price_drop(price, median_price)

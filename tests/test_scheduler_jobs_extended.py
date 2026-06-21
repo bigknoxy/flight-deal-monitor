@@ -228,6 +228,29 @@ class TestScanRouteFallbackChain:
             assert result == []  # price too low
 
     @pytest.mark.asyncio
+    async def test_scan_route_applies_route_multiplier(self, mock_session):
+        """detect_deal must be called with origin and destination for route multipliers."""
+        flight = {
+            "validatingAirlineCodes": ["BA"],
+            "itineraries": [{"segments": [{"flight": {"number": "BA123"}}]}],
+            "price": {"total": "200.00"},
+        }
+        with (
+            patch("app.scheduler_jobs.is_flight_seen_recently", return_value=False),
+            patch("app.scheduler_jobs.calculate_median_price", return_value=500.0),
+            patch("app.scheduler_jobs.price_cache.get_cached_route_data", return_value=None),
+            patch("app.scheduler_jobs.FLIClient") as mock_fli_cls,
+        ):
+            mock_fli = MagicMock()
+            mock_fli.search_flights.return_value = [flight]
+            mock_fli_cls.return_value = mock_fli
+
+            with patch("app.scheduler_jobs.detect_deal", return_value=(True, "flash_sale")) as mock_detect:
+                with patch("app.scheduler_jobs.calculate_price_drop", return_value=60.0):
+                    await _scan_route(mock_session, "MCI", "LHR", "2024-06-01")
+                    mock_detect.assert_called_once_with(200.0, 500.0, "MCI", "LHR")
+
+    @pytest.mark.asyncio
     async def test_scan_route_all_sources_fail(self, mock_session):
         """When all sources fail, return empty list."""
         with (

@@ -1,0 +1,74 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - navigation [ref=e4]:
+      - link "HOME" [ref=e5] [cursor=pointer]:
+        - /url: index.html
+      - link "ARCH" [ref=e6] [cursor=pointer]:
+        - /url: ARCHITECTURE.html
+      - link "DOCS" [ref=e7] [cursor=pointer]:
+        - /url: docs.html
+    - heading "📚 Documentation" [level=1] [ref=e8]
+  - generic [ref=e9]:
+    - heading "Quick Install" [level=2] [ref=e10]
+    - generic [ref=e11]: "# Clone and install git clone https://github.com/bigknoxy/flight-deal-monitor.git cd flight-deal-monitor pip install -r requirements.txt"
+    - generic [ref=e12]: "# Configure (required) cp config/.env.example .env # Add SEARCHAPI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID"
+    - generic [ref=e13]:
+      - strong [ref=e14]: "fli note:"
+      - text: Free but rate-limited. SearchAPI ($4/1K) recommended for reliability.
+  - generic [ref=e15]:
+    - heading "Environment Variables" [level=2] [ref=e16]
+    - table [ref=e17]:
+      - rowgroup [ref=e18]:
+        - row "Variable Required" [ref=e19]:
+          - columnheader "Variable" [ref=e20]
+          - columnheader "Required" [ref=e21]
+        - row "SEARCHAPI_API_KEY Yes (reliable fallback)" [ref=e22]:
+          - cell "SEARCHAPI_API_KEY" [ref=e23]
+          - cell "Yes (reliable fallback)" [ref=e24]
+        - row "TELEGRAM_BOT_TOKEN Yes" [ref=e25]:
+          - cell "TELEGRAM_BOT_TOKEN" [ref=e26]
+          - cell "Yes" [ref=e27]
+        - row "TELEGRAM_CHAT_ID Yes" [ref=e28]:
+          - cell "TELEGRAM_CHAT_ID" [ref=e29]
+          - cell "Yes" [ref=e30]
+        - row "DUFFEL_API_TOKEN Optional backup" [ref=e31]:
+          - cell "DUFFEL_API_TOKEN" [ref=e32]
+          - cell "Optional backup" [ref=e33]
+  - generic [ref=e34]:
+    - heading "API Usage" [level=2] [ref=e35]
+    - generic [ref=e36]: from fli.search import SearchFlights searcher = SearchFlights() filters = FlightSearchFilters( passenger_info=PassengerInfo(adults=1), flight_segments=[...], ) results = searcher.search(filters, top_n=10)
+  - generic [ref=e37]:
+    - heading "Quick Start" [level=2] [ref=e38]
+    - generic [ref=e39]: "python -m app.main # Server runs at http://localhost:8000"
+  - generic [ref=e40]:
+    - heading "Endpoints" [level=2] [ref=e41]
+    - table [ref=e42]:
+      - rowgroup [ref=e43]:
+        - row "Method Path Description" [ref=e44]:
+          - columnheader "Method" [ref=e45]
+          - columnheader "Path" [ref=e46]
+          - columnheader "Description" [ref=e47]
+        - row "GET /health Health check" [ref=e48]:
+          - cell "GET" [ref=e49]:
+            - generic [ref=e50]: GET
+          - cell "/health" [ref=e51]
+          - cell "Health check" [ref=e52]
+        - row "GET /config Configuration" [ref=e53]:
+          - cell "GET" [ref=e54]:
+            - generic [ref=e55]: GET
+          - cell "/config" [ref=e56]
+          - cell "Configuration" [ref=e57]
+        - row "GET /search Manual search" [ref=e58]:
+          - cell "GET" [ref=e59]:
+            - generic [ref=e60]: GET
+          - cell "/search" [ref=e61]
+          - cell "Manual search" [ref=e62]
+  - generic [ref=e63]:
+    - heading "Deploy" [level=2] [ref=e64]
+    - generic [ref=e65]: "# Docker (recommended) docker-compose up -d"
+    - generic [ref=e66]: "# Systemd systemctl enable flight-deal-monitor systemctl start flight-deal-monitor"
+  - contentinfo [ref=e67]:
+    - paragraph [ref=e68]:
+      - text: Flight Deal Monitor v1.0.0 |
+      - link "Home" [ref=e69] [cursor=pointer]:
+        - /url: index.html
