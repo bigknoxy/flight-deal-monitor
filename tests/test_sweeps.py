@@ -13,6 +13,7 @@ class TestRegularSweepLifecycle:
     async def test_regular_sweep_with_deals(self):
         """With deals found, alerts should be sent and recorded."""
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 
@@ -42,6 +43,7 @@ class TestRegularSweepLifecycle:
     async def test_regular_sweep_with_failed_alert(self):
         """When alert send fails, record shows failed status."""
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 
@@ -151,6 +153,7 @@ class TestMistakeSweepLifecycle:
     async def test_mistake_sweep_with_alerts_sent(self):
         """Mistake sweep should send alerts and record them when telegrams works."""
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 
@@ -181,6 +184,7 @@ class TestMistakeSweepLifecycle:
     async def test_mistake_sweep_with_alert_failure(self):
         """When telegram fails, alert records should show 'failed' status."""
         mock_session = AsyncMock()
+        mock_session.add = MagicMock()
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 

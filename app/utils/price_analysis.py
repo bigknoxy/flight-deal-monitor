@@ -56,29 +56,68 @@ async def calculate_median_price(
     return median
 
 
+def get_route_type(origin: str, destination: str) -> str:
+    us_airports = {
+        "JFK", "LGA", "EWR", "BOS", "PWM", "ONT", "SBA", "AUS", "MCI",
+        "SFO", "LAX", "ORD", "SEA", "MIA", "ATL", "DEN", "PHX", "LAS",
+        "IAD", "DCA", "PDX", "STL", "MSP", "DTW", "PHL", "CLT", "FLL",
+        "TPA", "RDU", "BWI", "SJC", "OAK", "SAN", "SMF",
+    }
+    eu_airports = {"LHR", "LTN", "EDI", "DUB", "BCN", "OSL", "CDG", "FRA", "AMS", "MAD", "FCO", "MUC", "ZRH", "ARN", "CPH"}
+    asia_airports = {"NRT", "HND", "ICN", "PVG", "PEK", "HKG", "SIN", "BKK"}
+    latam_airports = {"SJO", "PLS", "CUN", "MEX", "BOG", "LIM", "SCL", "GRU", "GIG", "EZE"}
+
+    origin_us = origin.startswith("K") or origin in us_airports
+    dest_us = destination.startswith("K") or destination in us_airports
+    origin_eu = origin in eu_airports
+    dest_eu = destination in eu_airports
+
+    if origin_us and dest_us:
+        return "domestic"
+    if origin_us and destination in eu_airports:
+        return "transatlantic"
+    if origin_us and destination in asia_airports:
+        return "transpacific"
+    if origin_us and destination in latam_airports:
+        return "latin_america"
+    if origin_eu and dest_eu:
+        return "europe"
+    if destination.startswith("K") or destination in us_airports:
+        if origin in eu_airports:
+            return "transatlantic"
+        if origin in asia_airports:
+            return "transpacific"
+        if origin in latam_airports:
+            return "latin_america"
+    return "domestic"
+
+
+def apply_route_multiplier(median_price: float, origin: str, destination: str) -> float:
+    route_type = get_route_type(origin, destination)
+    multiplier = getattr(config.app.route_multipliers, route_type, 1.0)
+    return median_price * multiplier
+
+
 def detect_deal(
     current_price: float,
     median_price: float,
+    origin: str | None = None,
+    destination: str | None = None,
 ) -> tuple[bool, str | None]:
-    """Detect if a flight is a deal based on price thresholds.
-
-    Thresholds:
-    - Mistake fare: price_drop >= 70% (configurable)
-    - Flash sale: price_drop >= 50% (configurable)
-    """
     if current_price >= median_price:
         return False, None
 
+    if origin is not None and destination is not None:
+        median_price = apply_route_multiplier(median_price, origin, destination)
+
     price_drop_percent = (median_price - current_price) / median_price
 
-    # Mistake fare: ≥70% off
     if price_drop_percent >= config.app.deal_thresholds.mistake_fare_percent:
         return True, "mistake_fare"
-
-    # Flash sale: ≥50% off
+    if price_drop_percent >= config.app.deal_thresholds.deep_flash_percent:
+        return True, "deep_flash"
     if price_drop_percent >= config.app.deal_thresholds.flash_sale_percent:
         return True, "flash_sale"
-
     return False, None
 
 

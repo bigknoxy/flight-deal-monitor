@@ -32,7 +32,7 @@ curl http://localhost:8000/health  # verify health
 ## Features ✨
 
 - **Route Monitoring**: Continuous monitoring of flight prices from home airports to destinations
-- **Deal Detection**: Identifies flash sales (≥50% drop) and mistake fares (≥70% off median)
+- **Deal Detection**: Three-tier detection — flash sales (≥50% drop), deep flash (≥65% drop), and mistake fares (≥70% off median)
 - **Real-time Alerts**: Instant Telegram notifications with booking links
 - **24h Deduplication**: Prevents duplicate alerts for the same flight
 - **Smart Scheduling**: Regular sweeps (30min) + priority mistake fare checks (15min)
@@ -172,6 +172,14 @@ app:
     mistake_fare_percent: 0.70   # ≥70% below median = mistake fare
     flash_sale_percent: 0.50     # ≥50% below median = flash sale
     deep_flash_percent: 0.65     # ≥65% below median = deep discount
+
+  # Route-specific multipliers (adjust median price by route volatility)
+  route_multipliers:
+    domestic: 1.0         # Standard domestic routes
+    transatlantic: 0.8    # More volatile, lower threshold
+    transpacific: 0.7     # Most volatile, lowest threshold
+    latin_america: 1.2    # Less volatile, higher threshold
+    europe: 0.85          # Moderately volatile
 ```
 
 ## API Endpoints 📡
