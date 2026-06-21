@@ -277,6 +277,11 @@ async def dashboard_deals_partial(
         ).body.decode()
         rows.append(row)
 
+    if not rows:
+        return HTMLResponse(
+            '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted);">No deals match your filters.</td></tr>'
+        )
+
     return HTMLResponse("".join(rows))
 
 
