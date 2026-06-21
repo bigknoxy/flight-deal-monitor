@@ -39,7 +39,7 @@ class TestAlembicImports:
     def test_alembic_can_generate_migration(self):
         """Alembic can generate a migration (opt-in, requires database)."""
         from alembic import command
-        from alembic.config import Config
+        from alembic.config import Config  # noqa: I001
 
         cfg = Config("alembic.ini")
         command.revision(cfg, autogenerate=True, message="test_migration")
