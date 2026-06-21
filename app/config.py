@@ -25,6 +25,14 @@ class RouteMultipliers(BaseSettings):
     europe: float = 0.85
 
 
+class LongWeekendConfig(BaseSettings):
+    """Long weekend deal monitoring configuration."""
+
+    enabled: bool = False
+    interval_minutes: int = 60
+    look_ahead_months: int = 12
+
+
 class AppConfig(BaseSettings):
     """Application configuration from YAML file."""
 
@@ -56,6 +64,7 @@ class AppConfig(BaseSettings):
 
     deal_thresholds: DealThresholds = DealThresholds()
     route_multipliers: RouteMultipliers = RouteMultipliers()
+    long_weekend: LongWeekendConfig = LongWeekendConfig()
 
     max_results_per_route: int = 10
     look_ahead_days: int = 90

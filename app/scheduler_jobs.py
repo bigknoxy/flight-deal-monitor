@@ -19,6 +19,7 @@ from app.utils.deduplication import (
     is_flight_seen_recently,
     mark_flight_seen,
 )
+from app.utils.long_weekend import get_long_weekend_date_pairs
 from app.utils.price_analysis import (
     calculate_median_price,
     calculate_price_drop,
@@ -59,25 +60,8 @@ async def run_regular_sweep() -> None:
 
                         for deal in deals:
                             deals_detected += 1
-                            telegram_message_id = await telegram_bot.send_alert(deal)
-
-                            # Record alert
-                            if telegram_message_id:
-                                alerts_sent += 1
-                                alert = AlertHistory(
-                                    flight_deal_id=deal.id,
-                                    telegram_message_id=telegram_message_id,
-                                    status="sent",
-                                )
-                            else:
-                                alert = AlertHistory(
-                                    flight_deal_id=deal.id,
-                                    status="failed",
-                                    error_message="Failed to send Telegram alert",
-                                )
-
-                            session.add(alert)
-                            await session.commit()
+                            d, a = await _send_deal_alert(session, deal)
+                            alerts_sent += a
 
         await _complete_job_run(job_run, deals_detected, alerts_sent)
         logger.info(
@@ -126,24 +110,8 @@ async def run_mistake_sweep() -> None:
                     for deal in deals:
                         if deal.deal_type == "mistake_fare":
                             deals_detected += 1
-                            telegram_message_id = await telegram_bot.send_alert(deal)
-
-                            if telegram_message_id:
-                                alerts_sent += 1
-                                alert = AlertHistory(
-                                    flight_deal_id=deal.id,
-                                    telegram_message_id=telegram_message_id,
-                                    status="sent",
-                                )
-                            else:
-                                alert = AlertHistory(
-                                    flight_deal_id=deal.id,
-                                    status="failed",
-                                    error_message="Failed to send Telegram alert",
-                                )
-
-                            session.add(alert)
-                            await session.commit()
+                            d, a = await _send_deal_alert(session, deal)
+                            alerts_sent += a
 
         await _complete_job_run(job_run, deals_detected, alerts_sent)
         logger.info(
@@ -156,16 +124,54 @@ async def run_mistake_sweep() -> None:
         await _fail_job_run(job_run, str(e))
 
 
+async def _send_deal_alert(
+    session: AsyncSession,
+    deal: FlightDeal,
+) -> tuple[int, int]:
+    """Send a Telegram alert for a deal and record it in AlertHistory.
+
+    Returns (deals_detected, alerts_sent) counts.
+    """
+    telegram_message_id = await telegram_bot.send_alert(deal)
+
+    if telegram_message_id:
+        alert = AlertHistory(
+            flight_deal_id=deal.id,
+            telegram_message_id=telegram_message_id,
+            status="sent",
+        )
+    else:
+        alert = AlertHistory(
+            flight_deal_id=deal.id,
+            status="failed",
+            error_message="Failed to send Telegram alert",
+        )
+
+    session.add(alert)
+    await session.commit()
+
+    return 1, 1 if telegram_message_id else 0
+
+
 async def _scan_route(
     session: AsyncSession,
     origin: str,
     destination: str,
     departure_date: str,
     amadeus_priority: bool = True,
+    return_date: str | None = None,
+    route_suffix: str = "",
 ) -> list[FlightDeal]:
-    """Scan a route for deals."""
+    """Scan a route for deals.
+
+    Args:
+        route_suffix: Optional suffix for route ID (e.g. "-long-weekend").
+        return_date: Optional return date for round-trip searches.
+    """
     deals = []
-    route_id = generate_route_id(origin, destination, departure_date, "")
+    route_id = generate_route_id(
+        origin, destination, departure_date, "", suffix=route_suffix
+    )
 
     if await is_flight_seen_recently(session, route_id):
         return deals
@@ -197,7 +203,7 @@ async def _scan_route(
             origin,
             destination,
             departure_date,
-            None,
+            return_date,
             config.app.max_results_per_route,
         )
         if flights:
@@ -345,6 +351,50 @@ async def _fail_job_run(job_run: JobRun, error_message: str) -> None:
     async with AsyncSessionLocal() as session:
         session.add(job_run)
         await session.commit()
+
+
+async def run_long_weekend_sweep() -> None:
+    """Scan for long weekend deals (Thu→Sun, Fri→Mon)."""
+    logger.info("Starting long weekend sweep")
+    job_run = await _start_job_run("long_weekend_sweep")
+
+    try:
+        deals_detected = 0
+        alerts_sent = 0
+
+        date_pairs = get_long_weekend_date_pairs(
+            config.app.long_weekend.look_ahead_months
+        )
+
+        async with AsyncSessionLocal() as session:
+            for origin in config.app.home_airports:
+                for destination in config.app.destinations:
+                    for departure_date, return_date in date_pairs:
+                        deals = await _scan_route(
+                            session,
+                            origin,
+                            destination,
+                            departure_date,
+                            amadeus_priority=True,
+                            return_date=return_date,
+                            route_suffix="-long-weekend",
+                        )
+
+                        for deal in deals:
+                            deals_detected += 1
+                            _, a = await _send_deal_alert(session, deal)
+                            alerts_sent += a
+
+        await _complete_job_run(job_run, deals_detected, alerts_sent)
+        logger.info(
+            f"Long weekend sweep complete: {deals_detected} deals, "
+            f"{alerts_sent} alerts"
+        )
+
+    except Exception as e:
+        logger.error(f"Long weekend sweep failed: {e}")
+        await telegram_bot.send_error_alert(f"Long weekend sweep failed: {e}")
+        await _fail_job_run(job_run, str(e))
 
 
 async def run_cleanup() -> None:
