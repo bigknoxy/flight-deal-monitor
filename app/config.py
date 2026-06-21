@@ -69,7 +69,6 @@ class AppConfig(BaseSettings):
     job_coalesce: bool = True
 
     cache_ttl_minutes: int = 360
-    cache_variance_threshold: float = 0.05
 
     @classmethod
     def from_yaml(cls, path: str = "config/app.yaml") -> "AppConfig":

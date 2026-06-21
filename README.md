@@ -35,7 +35,9 @@ curl http://localhost:8000/health  # verify health
 - **Deal Detection**: Three-tier detection — flash sales (≥50% drop), deep flash (≥65% drop), and mistake fares (≥70% off median)
 - **Real-time Alerts**: Instant Telegram notifications with booking links
 - **24h Deduplication**: Prevents duplicate alerts for the same flight
-- **Smart Scheduling**: Regular sweeps (30min) + priority mistake fare checks (15min)
+- **Auto Cleanup**: Expired deals are automatically purged daily
+- **Smart Scheduling**: Regular sweeps (30min) + priority mistake fare checks (15min) + daily cleanup
+- **Error Alerting**: Sweep failures are reported via Telegram for immediate awareness
 - **Price History**: Median price calculations for accurate deal detection
 - **Multi API Support**: fli library (FREE Google Flights, primary) + SearchAPI ($4/1K, fallback) + Duffel Air API (backup)
 - **Note**: fli uses curl_cffi to access Google Flights API — works intermittently as Google blocks repeated requests
@@ -161,7 +163,6 @@ app:
   job_coalesce: true
 
   cache_ttl_minutes: 360        # 6 hours
-  cache_variance_threshold: 0.05
 ```
 
 #### Deal Thresholds
@@ -197,7 +198,7 @@ Root endpoint with app info.
 ```
 
 ### GET `/health`
-Health check endpoint.
+Health check endpoint. Returns scheduler status and job information.
 
 **Response**:
 ```json
@@ -211,12 +212,70 @@ Health check endpoint.
       "next_run": "2024-06-01T12:30:00"
     }
   ],
-  "job_count": 2
+  "job_count": 3
 }
 ```
 
 ### GET `/config`
-Get current configuration (without secrets).
+Get current configuration (without secrets). Returns all app settings including deal thresholds and route multipliers.
+
+### GET `/deals`
+List detected flight deals with pagination and filtering.
+
+**Query Parameters**:
+- `limit` (int, default 20) — results per page
+- `offset` (int, default 0) — pagination offset
+- `deal_type` (str, optional) — filter by type: `flash_sale`, `deep_flash`, `mistake_fare`
+- `origin` (str, optional) — filter by origin airport code
+- `destination` (str, optional) — filter by destination airport code
+
+**Response**:
+```json
+{
+  "total": 42,
+  "limit": 20,
+  "offset": 0,
+  "deals": [
+    {
+      "id": 1,
+      "origin": "MCI",
+      "destination": "LHR",
+      "deal_type": "mistake_fare",
+      "price": 150.00,
+      "median_price": 500.00,
+      "url": "https://www.google.com/travel/flights?...",
+      "seen_at": "2024-06-01T12:00:00",
+      "expired_at": "2024-06-02T12:00:00"
+    }
+  ]
+}
+```
+
+### GET `/deals/stats`
+Get deal summary statistics.
+
+**Response**:
+```json
+{
+  "total_deals": 42,
+  "by_type": {
+    "flash_sale": 30,
+    "deep_flash": 8,
+    "mistake_fare": 4
+  },
+  "top_routes": [
+    {"route": "MCI→LHR", "count": 12},
+    {"route": "MCI→JFK", "count": 8}
+  ]
+}
+```
+
+### GET `/deals/{deal_id}`
+Get a single deal by its ID.
+
+**Response**: Full deal object (same fields as list response).
+
+**Error**: Returns `404` if deal not found.
 
 ## Development 👨‍💻
 
@@ -272,9 +331,19 @@ flight-deal-monitor/
 │       ├── price_analysis.py   # Deal detection logic
 │       └── deduplication.py    # 24h dedup
 ├── tests/
+│   ├── test_alert.py
 │   ├── test_api_clients.py
+│   ├── test_config.py
+│   ├── test_deduplication.py
+│   ├── test_fli_integration.py  # opt-in: FLI_INTEGRATION_TEST=1
+│   ├── test_main.py
 │   ├── test_price_analysis.py
-│   └── test_deduplication.py
+│   ├── test_price_analysis_extended.py
+│   ├── test_scheduler.py
+│   ├── test_scheduler_jobs.py
+│   ├── test_scheduler_jobs_extended.py
+│   ├── test_searchapi.py
+│   └── test_sweeps.py
 ├── config/
 │   ├── app.yaml
 │   └── .env.example
@@ -290,9 +359,23 @@ flight-deal-monitor/
 - Triggered when price is ≥70% below median
 - Example: Median $500, current $150 = 70% off → 🚨 URGENT!
 
+### Deep Flash Sales
+- Triggered when price is ≥65% below median
+- Example: Median $500, current $175 = 65% off → ⚡ Deep Flash!
+
 ### Flash Sales
 - Triggered when price is ≥50% below median
 - Example: Median $500, current $250 = 50% off → 🔥 Alert!
+
+### Route Multipliers
+Route-specific multipliers adjust the effective median price before deal detection, accounting for route volatility:
+- **Domestic** (1.0×): Standard threshold
+- **Transatlantic** (0.8×): More volatile, lower bar for deals
+- **Transpacific** (0.7×): Most volatile, lowest bar
+- **Latin America** (1.2×): Less volatile, higher bar
+- **Europe** (0.85×): Moderately volatile
+
+Example: A transatlantic route with median $500 uses effective median $400 (500 × 0.8), making a $280 fare qualify as a flash sale (50% off $400) even though it's only 44% off the raw median.
 
 ### Price History
 - Median calculated from last 30 days of pricing data
@@ -306,7 +389,7 @@ Alerts include:
 - Departure date and airline
 - Original price vs current price
 - Percentage discount
-- Deal type (flash sale or mistake fare)
+- Deal type (flash sale, deep flash, or mistake fare)
 - Direct booking link
 - Expiration warning (24 hours)
 
@@ -327,6 +410,8 @@ Flash Sale
 
 Deal expires in 24 hours
 ```
+
+**Error Alerts**: Sweep failures are automatically reported to the same Telegram chat with error details, ensuring silent failures are immediately visible.
 
 ## Deployment Options 🌐
 

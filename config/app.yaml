@@ -49,4 +49,3 @@ app:
   job_coalesce: true
 
   cache_ttl_minutes: 360
-  cache_variance_threshold: 0.05
