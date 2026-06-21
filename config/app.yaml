@@ -49,3 +49,9 @@ app:
   job_coalesce: true
 
   cache_ttl_minutes: 360
+
+  # Long weekend deal monitoring (opt-in)
+  long_weekend:
+    enabled: false
+    interval_minutes: 60          # Every hour
+    look_ahead_months: 12        # Up to 12 months out

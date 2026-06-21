@@ -104,6 +104,11 @@ async def get_config() -> dict:
             },
             "regular_sweep_interval": config.app.regular_sweep_interval,
             "mistake_sweep_interval": config.app.mistake_sweep_interval,
+            "long_weekend": {
+                "enabled": config.app.long_weekend.enabled,
+                "interval_minutes": config.app.long_weekend.interval_minutes,
+                "look_ahead_months": config.app.long_weekend.look_ahead_months,
+            },
         },
         "env": {
             "amadeus_env": config.env.amadeus_env,

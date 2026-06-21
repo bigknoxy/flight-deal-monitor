@@ -7,7 +7,12 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import config
-from app.scheduler_jobs import run_cleanup, run_mistake_sweep, run_regular_sweep
+from app.scheduler_jobs import (
+    run_cleanup,
+    run_long_weekend_sweep,
+    run_mistake_sweep,
+    run_regular_sweep,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +109,18 @@ def setup_jobs() -> None:
         name="Expired Deal Cleanup",
         replace_existing=True,
     )
+
+    # Long weekend sweep (opt-in)
+    if config.app.long_weekend.enabled:
+        scheduler.add_job(
+            run_long_weekend_sweep,
+            "interval",
+            seconds=config.app.long_weekend.interval_minutes * 60,
+            id="long_weekend_sweep",
+            name="Long Weekend Deal Sweep",
+            replace_existing=True,
+        )
+        logger.info("Long weekend sweep enabled")
 
     logger.info(f"Set up {len(scheduler.get_jobs())} scheduled jobs")
     for job in scheduler.get_jobs():

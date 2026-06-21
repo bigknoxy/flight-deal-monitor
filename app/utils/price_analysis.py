@@ -14,10 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 def generate_route_id(
-    origin: str, destination: str, departure_date: str, airline: str
+    origin: str,
+    destination: str,
+    departure_date: str,
+    airline: str,
+    suffix: str = "",
 ) -> str:
-    """Generate unique route ID for deduplication."""
-    data = f"{origin}-{destination}-{departure_date}-{airline}"
+    """Generate unique route ID for deduplication.
+
+    An optional suffix differentiates route types (e.g. "-long-weekend").
+    """
+    data = f"{origin}-{destination}-{departure_date}-{airline}{suffix}"
     return hashlib.sha256(data.encode()).hexdigest()[:16]
 
 
