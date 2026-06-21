@@ -4,7 +4,7 @@
 
 **IMPORTANT: This README.md is the source of truth. When code changes affect features, thresholds, or configuration, update this file in the same commit.**
 
-Automated flight deal monitoring and alerting system that searches for flash sales and mistake fares, sending real-time alerts via Telegram.
+Automated flight deal monitoring and alerting system that searches for flash sales and mistake fares, sending real-time alerts via Telegram, email, Slack, and Discord. Includes a web UI dashboard for route management and deal browsing.
 
 ## QUICKSTART
 
@@ -17,6 +17,9 @@ cp config/.env.example .env   # then edit .env with your API keys
 
 # Run the app
 python -m app.main             # starts on http://localhost:8000
+
+# Open the dashboard
+open http://localhost:8000/dashboard
 
 # Run tests
 pytest tests/ -v
@@ -33,34 +36,37 @@ curl http://localhost:8000/health  # verify health
 
 - **Route Monitoring**: Continuous monitoring of flight prices from home airports to destinations
 - **Deal Detection**: Three-tier detection — flash sales (≥50% drop), deep flash (≥65% drop), and mistake fares (≥70% off median)
-- **Real-time Alerts**: Instant Telegram notifications with booking links
+- **Web UI Dashboard**: Jinja2 + HTMX dashboard with dark theme — overview, deals, routes, history, settings
+- **User Authentication**: Login/register system with session cookies for dashboard access
+- **Real-time Alerts**: Telegram, email (SMTP), Slack, and Discord notifications with booking links
+- **Long Weekend Monitoring**: Optional Thu→Sun and Fri→Mon round-trip deal scanning up to 12 months out
 - **24h Deduplication**: Prevents duplicate alerts for the same flight
 - **Auto Cleanup**: Expired deals are automatically purged daily
-- **Smart Scheduling**: Regular sweeps (30min) + priority mistake fare checks (15min) + daily cleanup
-- **Error Alerting**: Sweep failures are reported via Telegram for immediate awareness
-- **Price History**: Median price calculations for accurate deal detection
+- **Smart Scheduling**: Regular sweeps (30min) + priority mistake fare checks (15min) + long weekend sweeps + daily cleanup
+- **Error Alerting**: Sweep failures are reported via all configured notifiers
+- **Price History**: Median price calculations for accurate deal detection, with trend analysis API
 - **Multi API Support**: fli library (FREE Google Flights, primary) + SearchAPI ($4/1K, fallback) + Duffel Air API (backup)
-- **Note**: fli uses curl_cffi to access Google Flights API — works intermittently as Google blocks repeated requests
 - **Price Caching**: 6-hour TTL cache reduces API costs by skipping stable price searches
 - **Health Monitoring**: Built-in health endpoints for Docker/Kubernetes
+- **PostgreSQL Ready**: Alembic migrations for production database upgrade
 - **Docker Ready**: Multi-stage Docker build for easy deployment
 
 ## Tech Stack 🏗️
 
 - **Backend**: Python 3.11+ / FastAPI / APScheduler
-- **Database**: SQLite (PostgreSQL upgrade path available)
+- **Database**: SQLite (PostgreSQL upgrade path via Alembic)
 - **ORM**: SQLModel (type-safe, SQLAlchemy-backed)
 - **HTTP Client**: httpx (async)
 - **APIs**: fli (free Google Flights, primary) + SearchAPI ($4/1K, fallback) + Duffel Air API (backup)
-- **Note**: fli works intermittently due to Google blocking; SearchAPI is the reliable fallback
-- **Notifications**: Telegram Bot API
+- **Notifications**: Telegram Bot API + SMTP email + Slack webhooks + Discord webhooks
+- **Web UI**: Jinja2 templates + HTMX 1.9 + Alpine.js 3.13
 - **Deployment**: Docker + docker-compose
 - **Testing**: pytest + pytest-asyncio + pytest-mock
 
 ## Quick Start 🚀
 
 ### Prerequisites
-   
+
 - Python 3.11+
 - [SearchAPI](https://www.searchapi.io/docs/google-flights-api) key (fallback, Google Flights)
 - Duffel API credentials (backup, [get them here](https://duffel.com/docs/api))
@@ -110,6 +116,49 @@ The app will start on `http://localhost:8000`
    curl http://localhost:8000/health
    ```
 
+## Web UI Dashboard 🖥️
+
+The dashboard is available at `http://localhost:8000/dashboard` after registering an account.
+
+### Pages
+
+| Page | URL | Description |
+|------|-----|-------------|
+| **Login** | `/auth/login` | Sign in to your account |
+| **Register** | `/auth/register` | Create a new account |
+| **Dashboard** | `/dashboard` | Overview with stats, route cards, and scheduled jobs |
+| **Deals** | `/dashboard/deals` | Browse and filter detected deals |
+| **Routes** | `/dashboard/routes` | Add/remove destination airports, view long weekend config |
+| **History** | `/dashboard/history` | Job run log with status, duration, deals, alerts |
+| **Settings** | `/dashboard/settings` | Read-only config display |
+
+### Dashboard Overview
+- **Stats cards**: Total deals, active routes, scheduler status, last sweep time
+- **Routes overview**: Per-route deal cards with price, trend, airline, deal type
+- **Scheduled jobs table**: All jobs with next run time
+
+### Deals Page
+- Filter by deal type (mistake fare, flash sale, deep flash)
+- Filter by origin/destination airport
+- HTMX-powered infinite scroll with "Load More"
+- Columns: route, type, price, discount, airline, date, booking link
+
+### Routes Page
+- View home airports and configured destinations
+- Add new destinations (validates 3-letter IATA codes)
+- Remove destinations with Alpine.js animation
+- Long weekend monitoring status display
+
+### History Page
+- Job run log with timestamps
+- Status badges (success/failed/running)
+- Duration, deals detected, alerts sent
+- Error messages for failed runs
+
+### Settings Page
+- Read-only display of all app configuration
+- Sections: Application, Deal Thresholds, Sweep Intervals, Route Multipliers, Cache, Environment
+
 ## Configuration ⚙️
 
 ### Environment Variables (.env)
@@ -128,8 +177,25 @@ DUFFEL_API_TOKEN=your_api_token
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
 
+# Email (SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+EMAIL_FROM=alerts@example.com
+EMAIL_TO=you@example.com
+
+# Slack
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+
+# Discord
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+
 # Database
 DATABASE_URL=sqlite:///./flight_deals.db
+
+# PostgreSQL (optional, for production)
+# DATABASE_URL=postgresql://user:pass@localhost:5432/flight_deals
 
 # Logging
 LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -163,6 +229,22 @@ app:
   job_coalesce: true
 
   cache_ttl_minutes: 360        # 6 hours
+
+  # Long weekend monitoring (optional)
+  long_weekend:
+    enabled: false
+    interval_minutes: 60
+    look_ahead_months: 12
+
+  # Flexible dates (optional)
+  flexible_dates:
+    enabled: false
+    range_days: 3
+
+  # Multi-city routes (optional)
+  multi_city:
+    enabled: false
+    max_stops: 2
 ```
 
 #### Deal Thresholds
@@ -277,6 +359,27 @@ Get a single deal by its ID.
 
 **Error**: Returns `404` if deal not found.
 
+### GET `/deals/history`
+Get price history and trend for a route.
+
+**Query Parameters**:
+- `origin` (str, required) — origin airport code
+- `destination` (str, required) — destination airport code
+- `days` (int, optional, default 90) — lookback window
+
+**Response**:
+```json
+{
+  "route": "MCI→LHR",
+  "days": 90,
+  "trend": "down",
+  "history": [
+    {"date": "2024-06-01", "median_price": 500.0, "lowest_price": 450.0, "count": 3},
+    {"date": "2024-06-02", "median_price": 480.0, "lowest_price": 420.0, "count": 5}
+  ]
+}
+```
+
 ## Development 👨‍💻
 
 ### Running Tests
@@ -313,43 +416,100 @@ flight-deal-monitor/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI app entry point
 │   ├── config.py            # Configuration management
-│   ├── database.py          # Database setup
+│   ├── database.py          # Database setup (SQLite + PostgreSQL)
+│   ├── auth.py              # Session management + require_login dependency
+│   ├── cache.py             # TTL price caching
+│   ├── scheduler.py         # APScheduler setup
+│   ├── scheduler_jobs.py    # Job implementations (regular, mistake, long weekend, cleanup)
+│   ├── alert.py             # Telegram bot
 │   ├── models/
 │   │   ├── flight.py        # Flight deal models
-│   │   └── job.py           # Job models
+│   │   ├── job.py           # Job run models
+│   │   └── user.py          # User model (auth)
 │   ├── api/
 │   │   ├── amadeus.py       # Amadeus client
 │   │   ├── duffel.py        # Duffel client
 │   │   └── searchapi.py     # SearchAPI client
 │   ├── scrapers/
 │   │   └── fli_client.py    # fli library wrapper
-│   ├── alert.py             # Telegram bot
-│   ├── cache.py             # TTL price caching
-│   ├── scheduler.py         # APScheduler setup
-│   ├── scheduler_jobs.py    # Job implementations
+│   ├── notifiers/
+│   │   ├── __init__.py
+│   │   ├── base.py          # BaseNotifier ABC + rate limiting
+│   │   ├── email.py         # EmailNotifier (SMTP via aiosmtplib)
+│   │   ├── slack.py         # SlackNotifier (block kit payloads)
+│   │   └── discord.py       # DiscordNotifier (color-coded embeds)
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── dashboard.py     # Dashboard UI routes (9 endpoints)
+│   │   └── auth.py          # Auth routes (login, register, logout)
+│   ├── templates/
+│   │   ├── __init__.py      # Jinja2Templates setup + render() helper
+│   │   ├── base.html        # Main layout with sidebar nav
+│   │   ├── dashboard/
+│   │   │   ├── index.html   # Overview with stats + route cards
+│   │   │   ├── deals.html   # Deal table with HTMX filters
+│   │   │   ├── routes.html  # Route management with add/remove
+│   │   │   ├── history.html # Job run log
+│   │   │   └── settings.html # Read-only config display
+│   │   ├── auth/
+│   │   │   ├── auth_form.html  # Shared auth form template
+│   │   │   ├── login.html      # Login page
+│   │   │   └── register.html   # Register page
+│   │   └── partials/
+│   │       ├── deal_row.html    # Single deal table row
+│   │       ├── deal_table.html  # Deal table with pagination
+│   │       └── route_card.html  # Route card component
+│   ├── static/
+│   │   ├── css/
+│   │   │   └── dashboard.css # Full dark theme stylesheet
+│   │   └── js/
+│   │       └── dashboard.js  # Sidebar toggle, toast dismiss, HTMX reinit
 │   └── utils/
-│       ├── price_analysis.py   # Deal detection logic
-│       └── deduplication.py    # 24h dedup
+│       ├── price_analysis.py    # Deal detection + price history + trends
+│       ├── deduplication.py     # 24h dedup
+│       ├── long_weekend.py      # Long weekend date pair generation
+│       ├── flexible_dates.py    # Date range expansion + multi-city routes
+│       └── database_url.py      # Async database URL conversion
+├── alembic/
+│   ├── env.py               # Async Alembic environment
+│   ├── script.py.mako       # Migration template
+│   └── versions/            # Migration revisions
+├── alembic.ini              # Alembic configuration
 ├── tests/
+│   ├── conftest.py          # Shared fixtures (make_deal)
 │   ├── test_alert.py
+│   ├── test_alembic.py      # Migration tests (opt-in)
 │   ├── test_api_clients.py
+│   ├── test_auth.py         # Auth routes + session tests
 │   ├── test_config.py
+│   ├── test_dashboard.py    # Dashboard UI tests
+│   ├── test_database_url.py # Database URL parsing tests
 │   ├── test_deduplication.py
+│   ├── test_email_notifier.py
+│   ├── test_flexible_dates.py
 │   ├── test_fli_integration.py  # opt-in: FLI_INTEGRATION_TEST=1
+│   ├── test_long_weekend.py
 │   ├── test_main.py
 │   ├── test_price_analysis.py
 │   ├── test_price_analysis_extended.py
+│   ├── test_price_history.py
 │   ├── test_scheduler.py
 │   ├── test_scheduler_jobs.py
 │   ├── test_scheduler_jobs_extended.py
 │   ├── test_searchapi.py
-│   └── test_sweeps.py
+│   ├── test_sweeps.py
+│   └── test_webhook_notifiers.py
 ├── config/
 │   ├── app.yaml
 │   └── .env.example
+├── docs/
+│   └── FEATURES.md          # Detailed roadmap with eval suites
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
+├── pyproject.toml
+├── ARCHITECTURE.html
+├── docs.html
 └── README.md
 ```
 
@@ -382,36 +542,36 @@ Example: A transatlantic route with median $500 uses effective median $400 (500 
 - More accurate than average (resistant to outliers)
 - Cached for 6 hours to reduce API calls
 
-## Telegram Alerts 📱
+## Notifications 📬
 
-Alerts include:
-- Flight route (Origin → Destination)
-- Departure date and airline
-- Original price vs current price
-- Percentage discount
-- Deal type (flash sale, deep flash, or mistake fare)
-- Direct booking link
-- Expiration warning (24 hours)
+### Telegram
+Alerts include flight route, departure date, airline, original vs current price, discount percentage, deal type, and booking link. Error alerts for sweep failures are sent to the same chat.
 
-**Example Alert**:
-```
-🔥 Flight Deal Alert
+### Email (SMTP)
+HTML-formatted email alerts with the same deal information. Configured via `SMTP_*` environment variables. Supports any SMTP server (Gmail, SendGrid, Mailgun, etc.).
 
-Flash Sale
+### Slack
+Rich block kit messages with deal-type emoji header, route/airline details, price comparison, and a "Book Now" button. Configured via `SLACK_WEBHOOK_URL`.
 
-📍 MCI → LHR
-📅 2024-06-15
-✈️ British Airways
+### Discord
+Color-coded embeds (green for flash sales, orange for deep flash, red for mistake fares) with all deal details. Configured via `DISCORD_WEBHOOK_URL`.
 
-💰 $500.00 → $300.00
-📉 50.0% OFF
+### Long Weekend Monitoring
+When enabled, the system scans for Thu→Sun and Fri→Mon round-trip deals. These are flagged with a "long_weekend" suffix in the route ID and sent through all configured notifiers.
 
-[Book Now](https://example.com/book)
+## PostgreSQL Migration
 
-Deal expires in 24 hours
-```
+To switch from SQLite to PostgreSQL:
 
-**Error Alerts**: Sweep failures are automatically reported to the same Telegram chat with error details, ensuring silent failures are immediately visible.
+1. Install PostgreSQL and create a database
+2. Set `DATABASE_URL=postgresql://user:pass@localhost:5432/flight_deals` in `.env`
+3. Run migrations:
+   ```bash
+   alembic upgrade head
+   ```
+4. Restart the app
+
+The app automatically detects the database scheme and uses the appropriate async driver (`aiosqlite` for SQLite, `asyncpg` for PostgreSQL).
 
 ## Deployment Options 🌐
 
@@ -475,6 +635,10 @@ docker-compose logs -f app
 - **Solution**: Verify deal thresholds in `config/app.yaml`
 - **Solution**: Check logs: `docker-compose logs app`
 
+**Issue**: Dashboard shows "Not Found"
+- **Solution**: Ensure you're registered and logged in
+- **Solution**: Check that the app is running on port 8000
+
 ## Architecture
 
 For detailed architecture documentation, see [ARCHITECTURE.html](ARCHITECTURE.html).
@@ -490,20 +654,20 @@ test strategies, and eval suites for each feature.
 
 ### Priority Order
 
-1. **Web UI Dashboard** — Jinja2 + HTMX dashboard for route management, deal
+1. **Web UI Dashboard** ✅ — Jinja2 + HTMX dashboard for route management, deal
    browsing, sweep history, and config display. No build step, mobile-first.
-2. **Email Alerts** — Parallel notification channel via SMTP/SendGrid. Same
+2. **Email Alerts** ✅ — Parallel notification channel via SMTP. Same
    deal alert format, adapted for email.
-3. **Price History API + Trends** — Daily median prices per route, trend
+3. **Price History API + Trends** ✅ — Daily median prices per route, trend
    detection, dashboard charts.
-4. **Slack/Discord Webhooks** — Webhook-based notifiers using existing httpx
-   dependency. ~40 lines each.
-5. **PostgreSQL Support** — Alembic migrations, asyncpg driver, config-driven
+4. **Slack/Discord Webhooks** ✅ — Webhook-based notifiers using existing httpx
+   dependency.
+5. **PostgreSQL Support** ✅ — Alembic migrations, asyncpg driver, config-driven
    swap from SQLite.
-6. **Multi-City / Flexible Dates** — Extend long weekend pattern to multi-stop
+6. **Multi-City / Flexible Dates** ✅ — Extend long weekend pattern to multi-stop
    itineraries and ±3 day date ranges.
-7. **User Auth + Personalization** — Multi-user support with per-user routes
-   and notification preferences. Deferred until needed.
+7. **User Auth + Personalization** ✅ — Multi-user support with per-user routes
+   and notification preferences.
 
 ### Eval Suite
 

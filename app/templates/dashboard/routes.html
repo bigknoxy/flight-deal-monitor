@@ -59,7 +59,8 @@
 
     <form method="post" action="/dashboard/routes/add"
           hx-post="/dashboard/routes/add"
-          hx-target="body"
+          hx-target="#destination-list"
+          hx-swap="outerHTML"
           style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);"
           x-data="{ code: '' }">
         <div class="form-inline">
