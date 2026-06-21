@@ -100,7 +100,7 @@ class TestSetupJobs:
     def test_setup_jobs_adds_regular_and_mistake(self):
         with patch.object(scheduler, "add_job") as mock_add_job:
             setup_jobs()
-            assert mock_add_job.call_count == 2
+            assert mock_add_job.call_count == 3
 
             call1 = mock_add_job.call_args_list[0]
             assert call1[0][1] == "interval"
@@ -109,6 +109,10 @@ class TestSetupJobs:
             call2 = mock_add_job.call_args_list[1]
             assert call2[0][1] == "interval"
             assert call2[1]["id"] == "mistake_sweep"
+
+            call3 = mock_add_job.call_args_list[2]
+            assert call3[0][1] == "interval"
+            assert call3[1]["id"] == "cleanup"
 
     def test_setup_jobs_replace_existing(self):
         """All jobs must have replace_existing=True."""

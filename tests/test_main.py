@@ -1,6 +1,6 @@
 """Test FastAPI application endpoints."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -129,3 +129,150 @@ class TestConfigEndpoint:
         r1 = await client.get("/config")
         r2 = await client.get("/config")
         assert r1.json() == r2.json()
+
+
+class TestDealEndpoints:
+
+    @pytest.mark.asyncio
+    async def test_list_deals_empty(self, client):
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+        mock_result = MagicMock()
+        mock_result.scalar.return_value = 0
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
+        mock_session.execute.return_value = mock_result
+        with patch("app.main.AsyncSessionLocal", return_value=mock_session):
+            response = await client.get("/deals")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total"] == 0
+            assert data["deals"] == []
+
+    @pytest.mark.asyncio
+    async def test_deal_stats_empty(self, client):
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+        mock_count_result = MagicMock()
+        mock_count_result.scalar.return_value = 0
+        mock_type_result = MagicMock()
+        mock_type_result.all.return_value = []
+        mock_route_result = MagicMock()
+        mock_route_result.all.return_value = []
+        mock_session.execute.side_effect = [mock_count_result, mock_type_result, mock_route_result]
+        with patch("app.main.AsyncSessionLocal", return_value=mock_session):
+            response = await client.get("/deals/stats")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_deals"] == 0
+            assert data["by_type"] == {}
+            assert data["top_routes"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_deal_not_found(self, client):
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        mock_session.execute.return_value = mock_result
+        with patch("app.main.AsyncSessionLocal", return_value=mock_session):
+            response = await client.get("/deals/999")
+            assert response.status_code == 404
+            data = response.json()
+            assert data["detail"] == "Deal not found"
+
+    @pytest.mark.asyncio
+    async def test_list_deals_with_data(self, client):
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+        mock_deal = MagicMock()
+        mock_deal.id = 1
+        mock_deal.route_id = "MCI-LHR-2024-06-01"
+        mock_deal.origin = "MCI"
+        mock_deal.destination = "LHR"
+        mock_deal.departure_date = "2024-06-01"
+        mock_deal.airline = "BA"
+        mock_deal.flight_numbers = "BA123"
+        mock_deal.original_price_usd = 500.0
+        mock_deal.current_price_usd = 150.0
+        mock_deal.price_drop_percent = 70.0
+        mock_deal.deal_type = "mistake_fare"
+        mock_deal.booking_url = "https://example.com/book"
+        mock_deal.seen_at = None
+        mock_count_result = MagicMock()
+        mock_count_result.scalar.return_value = 1
+        mock_data_scalars = MagicMock()
+        mock_data_scalars.all.return_value = [mock_deal]
+        mock_data_result = MagicMock()
+        mock_data_result.scalars.return_value = mock_data_scalars
+        mock_session.execute.side_effect = [mock_count_result, mock_data_result]
+        with patch("app.main.AsyncSessionLocal", return_value=mock_session):
+            response = await client.get("/deals")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total"] == 1
+            assert len(data["deals"]) == 1
+            assert data["deals"][0]["id"] == 1
+            assert data["deals"][0]["origin"] == "MCI"
+            assert data["deals"][0]["destination"] == "LHR"
+
+    @pytest.mark.asyncio
+    async def test_list_deals_filter_by_type(self, client):
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+        mock_deal = MagicMock()
+        mock_deal.id = 1
+        mock_deal.route_id = "MCI-LHR-2024-06-01"
+        mock_deal.origin = "MCI"
+        mock_deal.destination = "LHR"
+        mock_deal.departure_date = "2024-06-01"
+        mock_deal.airline = "BA"
+        mock_deal.flight_numbers = "BA123"
+        mock_deal.original_price_usd = 500.0
+        mock_deal.current_price_usd = 150.0
+        mock_deal.price_drop_percent = 70.0
+        mock_deal.deal_type = "mistake_fare"
+        mock_deal.booking_url = "https://example.com/book"
+        mock_deal.seen_at = None
+        mock_count_result = MagicMock()
+        mock_count_result.scalar.return_value = 1
+        mock_data_scalars = MagicMock()
+        mock_data_scalars.all.return_value = [mock_deal]
+        mock_data_result = MagicMock()
+        mock_data_result.scalars.return_value = mock_data_scalars
+        mock_session.execute.side_effect = [mock_count_result, mock_data_result]
+        with patch("app.main.AsyncSessionLocal", return_value=mock_session):
+            response = await client.get("/deals?deal_type=mistake_fare")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total"] == 1
+            assert data["deals"][0]["deal_type"] == "mistake_fare"
+
+    @pytest.mark.asyncio
+    async def test_deal_stats_with_data(self, client):
+        mock_session = AsyncMock()
+        mock_session.__aenter__.return_value = mock_session
+        mock_session.__aexit__.return_value = None
+        mock_count_result = MagicMock()
+        mock_count_result.scalar.return_value = 3
+        mock_type_result = MagicMock()
+        mock_type_result.all.return_value = [("mistake_fare", 2), ("flash_sale", 1)]
+        mock_route_result = MagicMock()
+        mock_route_result.all.return_value = [("MCI", "LHR", 2), ("JFK", "LHR", 1)]
+        mock_session.execute.side_effect = [mock_count_result, mock_type_result, mock_route_result]
+        with patch("app.main.AsyncSessionLocal", return_value=mock_session):
+            response = await client.get("/deals/stats")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_deals"] == 3
+            assert data["by_type"] == {"mistake_fare": 2, "flash_sale": 1}
+            assert len(data["top_routes"]) == 2
+            assert data["top_routes"][0]["origin"] == "MCI"
+            assert data["top_routes"][0]["destination"] == "LHR"
+            assert data["top_routes"][0]["count"] == 2

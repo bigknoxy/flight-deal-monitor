@@ -167,3 +167,22 @@ class TestTelegramBotHTTP:
 
             result = await bot.test_connection()
             assert result is False
+
+    @pytest.mark.asyncio
+    async def test_send_error_alert_success(self, bot):
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_response = MagicMock()
+            mock_client.post.return_value = mock_response
+            mock_client_cls.return_value.__aenter__.return_value = mock_client
+            result = await bot.send_error_alert("Test error message")
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_send_error_alert_failure(self, bot):
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.side_effect = Exception("API error")
+            mock_client_cls.return_value.__aenter__.return_value = mock_client
+            result = await bot.send_error_alert("Test error message")
+            assert result is False

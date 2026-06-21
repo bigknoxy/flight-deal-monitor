@@ -14,7 +14,11 @@ from app.database import AsyncSessionLocal
 from app.models.flight import AlertHistory, FlightDeal
 from app.models.job import JobRun
 from app.scrapers.fli_client import FLIClient
-from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
+from app.utils.deduplication import (
+    cleanup_expired_deals,
+    is_flight_seen_recently,
+    mark_flight_seen,
+)
 from app.utils.price_analysis import (
     calculate_median_price,
     calculate_price_drop,
@@ -82,6 +86,7 @@ async def run_regular_sweep() -> None:
 
     except Exception as e:
         logger.error(f"Regular sweep failed: {e}")
+        await telegram_bot.send_error_alert(f"Regular sweep failed: {e}")
         await _fail_job_run(job_run, str(e))
 
 
@@ -147,6 +152,7 @@ async def run_mistake_sweep() -> None:
 
     except Exception as e:
         logger.error(f"Mistake fare sweep failed: {e}")
+        await telegram_bot.send_error_alert(f"Mistake fare sweep failed: {e}")
         await _fail_job_run(job_run, str(e))
 
 
@@ -339,3 +345,14 @@ async def _fail_job_run(job_run: JobRun, error_message: str) -> None:
     async with AsyncSessionLocal() as session:
         session.add(job_run)
         await session.commit()
+
+
+async def run_cleanup() -> None:
+    """Run cleanup of expired flight deals."""
+    logger.info("Starting cleanup of expired deals")
+    try:
+        async with AsyncSessionLocal() as session:
+            count = await cleanup_expired_deals(session)
+            logger.info(f"Cleanup complete: removed {count} expired deals")
+    except Exception as e:
+        logger.error(f"Cleanup failed: {e}")
