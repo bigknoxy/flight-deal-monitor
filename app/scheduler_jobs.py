@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,12 +42,10 @@ def _build_google_flights_url(
     airline: str = "",
 ) -> str:
     """Build a Google Flights search URL with specific dates and route."""
-    params = f"q=Flights+to+{destination}+from+{origin}+on+{departure_date}"
+    q = f"Flights to {destination} from {origin} on {departure_date}"
     if return_date:
-        params += f"+return+on+{return_date}"
-    if airline:
-        params += f"+{airline}"
-    return f"https://www.google.com/travel/flights?{params}"
+        q += f" return on {return_date}"
+    return f"https://www.google.com/travel/flights?q={quote(q)}"
 
 
 async def run_regular_sweep() -> None:
