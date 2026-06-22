@@ -1,67 +1,52 @@
 app:
-  home_airports:
-    - "MCI"
-
-  destinations:
-    - "JFK"
-    - "LGA"
-    - "EWR"
-    - "BOS"
-    - "PWM"
-    - "ONT"
-    - "SBA"
-    - "PLS"
-    - "SJO"
-    - "AUS"
-    - "DUB"
-    - "BCN"
-    - "LHR"  # Added Heathrow (more reliable than LTN)
-    - "LTN"
-    - "EDI"
-    - "OSL"
-    - "NRT"  # Fixed: Narita instead of TYO
-    - "HND"  # Added: Haneda as alternative
-    - "ICN"
-
-  # Deal detection thresholds (configurable per-route)
-  deal_thresholds:
-    mistake_fare_percent: 0.70    # 70% below median = mistake fare
-    flash_sale_percent: 0.50      # 50% below median = flash sale
-    deep_flash_percent: 0.65      # 65% below median = deep discount
-
-  # Route-specific overrides (multiplier based on volatility)
-  route_multipliers:
-    domestic: 1.0
-    transatlantic: 0.8
-    transpacific: 0.7
-    latin_america: 1.2
-    europe: 0.85
-
-  max_results_per_route: 10
-  look_ahead_days: 90
-  look_back_days: 30
-
-  min_price_usd: 100
-  max_alerts_per_hour: 10
-
-  regular_sweep_interval: 1800
-  mistake_sweep_interval: 900
-  job_coalesce: true
-
   cache_ttl_minutes: 360
-
-  # Long weekend deal monitoring (opt-in)
-  long_weekend:
-    enabled: false
-    interval_minutes: 60          # Every hour
-    look_ahead_months: 12        # Up to 12 months out
-
-  # Flexible date range search (opt-in)
+  deal_thresholds:
+    deep_flash_percent: 0.65
+    flash_sale_percent: 0.5
+    mistake_fare_percent: 0.7
+  destinations:
+  - JFK
+  - LGA
+  - EWR
+  - BOS
+  - PWM
+  - ONT
+  - SBA
+  - PLS
+  - SJO
+  - AUS
+  - DUB
+  - BCN
+  - LHR
+  - LTN
+  - EDI
+  - OSL
+  - NRT
+  - HND
+  - ICN
   flexible_dates:
     enabled: false
     range_days: 3
-
-  # Multi-city route search (opt-in)
+  home_airports:
+  - MCI
+  job_coalesce: true
+  long_weekend:
+    enabled: false
+    interval_minutes: 60
+    look_ahead_months: 12
+  look_ahead_days: 90
+  look_back_days: 30
+  max_alerts_per_hour: 10
+  max_results_per_route: 10
+  min_price_usd: 100
+  mistake_sweep_interval: 900
   multi_city:
     enabled: false
     max_stops: 2
+  regular_sweep_interval: 1800
+  route_multipliers:
+    domestic: 1.0
+    europe: 0.85
+    latin_america: 1.2
+    transatlantic: 0.8
+    transpacific: 0.7

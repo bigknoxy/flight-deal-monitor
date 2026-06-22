@@ -16,15 +16,15 @@ class TestCalculateMedianPrice:
     """Tests for async DB-based median price calculation."""
 
     @pytest.mark.asyncio
-    async def test_returns_default_when_no_history(self):
-        """When no price history exists, must return default fallback (500.0)."""
+    async def test_returns_none_when_no_history(self):
+        """When no price history exists, must return None (caller uses search results as baseline)."""
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
         mock_session.execute.return_value = mock_result
 
         median = await calculate_median_price(mock_session, "MCI", "LHR")
-        assert median == 500.0
+        assert median is None
 
     @pytest.mark.asyncio
     async def test_median_single_value(self):
