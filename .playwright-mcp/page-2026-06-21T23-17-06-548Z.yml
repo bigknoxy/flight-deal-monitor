@@ -1,0 +1,150 @@
+- generic [active] [ref=e1]:
+  - complementary [ref=e2]:
+    - generic [ref=e3]:
+      - heading "✈ Deal Monitor" [level=1] [ref=e4]
+      - generic [ref=e5]: v1.0.0
+    - navigation [ref=e6]:
+      - link "■ Dashboard" [ref=e7] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e8]: ■
+        - text: Dashboard
+      - link "☰ Deals" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard/deals
+        - generic [ref=e10]: ☰
+        - text: Deals
+      - link "←→ Routes" [ref=e11] [cursor=pointer]:
+        - /url: /dashboard/routes
+        - generic [ref=e12]: ←→
+        - text: Routes
+      - link "↻ History" [ref=e13] [cursor=pointer]:
+        - /url: /dashboard/history
+        - generic [ref=e14]: ↻
+        - text: History
+      - link "⚙ Settings" [ref=e15] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - generic [ref=e16]: ⚙
+        - text: Settings
+  - main [ref=e17]:
+    - generic [ref=e18]:
+      - heading "Sweep History" [level=2] [ref=e19]
+      - paragraph [ref=e20]: Recent job run log
+    - table [ref=e23]:
+      - rowgroup [ref=e24]:
+        - row "Time Job Duration Deals Alerts Status" [ref=e25]:
+          - columnheader "Time" [ref=e26]
+          - columnheader "Job" [ref=e27]
+          - columnheader "Duration" [ref=e28]
+          - columnheader "Deals" [ref=e29]
+          - columnheader "Alerts" [ref=e30]
+          - columnheader "Status" [ref=e31]
+      - rowgroup [ref=e32]:
+        - row "2026-06-21 22:55:44 mistake_sweep 0.8s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e33]:
+          - cell "2026-06-21 22:55:44" [ref=e34]
+          - cell "mistake_sweep" [ref=e35]:
+            - code [ref=e36]: mistake_sweep
+          - cell "0.8s" [ref=e37]
+          - cell "0" [ref=e38]
+          - cell "0" [ref=e39]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e40]:
+            - generic [ref=e41]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 22:40:44 mistake_sweep 0.6s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e42]:
+          - cell "2026-06-21 22:40:44" [ref=e43]
+          - cell "mistake_sweep" [ref=e44]:
+            - code [ref=e45]: mistake_sweep
+          - cell "0.6s" [ref=e46]
+          - cell "0" [ref=e47]
+          - cell "0" [ref=e48]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e49]:
+            - generic [ref=e50]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 22:40:44 regular_sweep 0.9s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e51]:
+          - cell "2026-06-21 22:40:44" [ref=e52]
+          - cell "regular_sweep" [ref=e53]:
+            - code [ref=e54]: regular_sweep
+          - cell "0.9s" [ref=e55]
+          - cell "0" [ref=e56]
+          - cell "0" [ref=e57]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e58]:
+            - generic [ref=e59]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 22:25:44 mistake_sweep 0.6s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e60]:
+          - cell "2026-06-21 22:25:44" [ref=e61]
+          - cell "mistake_sweep" [ref=e62]:
+            - code [ref=e63]: mistake_sweep
+          - cell "0.6s" [ref=e64]
+          - cell "0" [ref=e65]
+          - cell "0" [ref=e66]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e67]:
+            - generic [ref=e68]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 22:10:45 mistake_sweep 0.9s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e69]:
+          - cell "2026-06-21 22:10:45" [ref=e70]
+          - cell "mistake_sweep" [ref=e71]:
+            - code [ref=e72]: mistake_sweep
+          - cell "0.9s" [ref=e73]
+          - cell "0" [ref=e74]
+          - cell "0" [ref=e75]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e76]:
+            - generic [ref=e77]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 22:10:45 regular_sweep 0.7s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e78]:
+          - cell "2026-06-21 22:10:45" [ref=e79]
+          - cell "regular_sweep" [ref=e80]:
+            - code [ref=e81]: regular_sweep
+          - cell "0.7s" [ref=e82]
+          - cell "0" [ref=e83]
+          - cell "0" [ref=e84]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e85]:
+            - generic [ref=e86]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 21:55:44 mistake_sweep 1.0s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e87]:
+          - cell "2026-06-21 21:55:44" [ref=e88]
+          - cell "mistake_sweep" [ref=e89]:
+            - code [ref=e90]: mistake_sweep
+          - cell "1.0s" [ref=e91]
+          - cell "0" [ref=e92]
+          - cell "0" [ref=e93]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e94]:
+            - generic [ref=e95]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 21:40:44 mistake_sweep 0.9s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e96]:
+          - cell "2026-06-21 21:40:44" [ref=e97]
+          - cell "mistake_sweep" [ref=e98]:
+            - code [ref=e99]: mistake_sweep
+          - cell "0.9s" [ref=e100]
+          - cell "0" [ref=e101]
+          - cell "0" [ref=e102]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e103]:
+            - generic [ref=e104]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 21:40:44 regular_sweep 0.7s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e105]:
+          - cell "2026-06-21 21:40:44" [ref=e106]
+          - cell "regular_sweep" [ref=e107]:
+            - code [ref=e108]: regular_sweep
+          - cell "0.7s" [ref=e109]
+          - cell "0" [ref=e110]
+          - cell "0" [ref=e111]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e112]:
+            - generic [ref=e113]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 21:25:44 mistake_sweep 0.7s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e114]:
+          - cell "2026-06-21 21:25:44" [ref=e115]
+          - cell "mistake_sweep" [ref=e116]:
+            - code [ref=e117]: mistake_sweep
+          - cell "0.7s" [ref=e118]
+          - cell "0" [ref=e119]
+          - cell "0" [ref=e120]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e121]:
+            - generic [ref=e122]: Failed
+            - text: object NoneType can't be used in 'await' expression
+        - row "2026-06-21 20:43:10 mistake_sweep 0.6s 0 0 Failed object NoneType can't be used in 'await' expression" [ref=e123]:
+          - cell "2026-06-21 20:43:10" [ref=e124]
+          - cell "mistake_sweep" [ref=e125]:
+            - code [ref=e126]: mistake_sweep
+          - cell "0.6s" [ref=e127]
+          - cell "0" [ref=e128]
+          - cell "0" [ref=e129]
+          - cell "Failed object NoneType can't be used in 'await' expression" [ref=e130]:
+            - generic [ref=e131]: Failed
+            - text: object NoneType can't be used in 'await' expression

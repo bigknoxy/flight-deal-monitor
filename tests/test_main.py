@@ -19,18 +19,10 @@ async def client():
 class TestRootEndpoint:
 
     @pytest.mark.asyncio
-    async def test_root_returns_app_info(self, client):
-        response = await client.get("/")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["name"] == "flight-deal-monitor"
-        assert data["version"] == "1.0.0"
-        assert "description" in data
-
-    @pytest.mark.asyncio
-    async def test_root_content_type(self, client):
-        response = await client.get("/")
-        assert response.headers["content-type"] == "application/json"
+    async def test_root_redirects_to_dashboard(self, client):
+        response = await client.get("/", follow_redirects=False)
+        assert response.status_code in (302, 303, 307)
+        assert response.headers["location"] == "/dashboard"
 
 
 class TestHealthEndpoint:

@@ -5,125 +5,315 @@
 {% block content %}
 <div class="page-header">
     <h2>Settings</h2>
-    <p>Current application configuration (read-only)</p>
+    <p>Configure all application settings</p>
 </div>
 
-<div class="card">
-    <div class="card-header">Application</div>
-    <div class="settings-row">
-        <span class="settings-label">Name</span>
-        <span class="settings-value">{{ config_info.app.name }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Version</span>
-        <span class="settings-value">{{ config_info.app.version }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Home Airports</span>
-        <span class="settings-value">{{ config_info.app.home_airports|join(', ') }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Destinations</span>
-        <span class="settings-value">{{ config_info.app.destinations|length }} configured</span>
-    </div>
+{% if saved %}
+<div class="toast success" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)">
+    Settings saved successfully. Some changes may require a restart.
 </div>
+{% endif %}
 
-<div class="card">
-    <div class="card-header">Deal Thresholds</div>
-    {% set thresholds = config_info.app.deal_thresholds %}
-    <div class="settings-row">
-        <span class="settings-label">Mistake Fare (70%+)</span>
-        <span class="settings-value">{{ "%.0f"|format(thresholds.mistake_fare_percent * 100) }}%</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Deep Flash (65%+)</span>
-        <span class="settings-value">{{ "%.0f"|format(thresholds.deep_flash_percent * 100) }}%</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Flash Sale (50%+)</span>
-        <span class="settings-value">{{ "%.0f"|format(thresholds.flash_sale_percent * 100) }}%</span>
-    </div>
+{% if save_error %}
+<div class="toast error" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
+    {{ save_error }}
 </div>
+{% endif %}
 
-<div class="card">
-    <div class="card-header">Sweep Intervals</div>
-    <div class="settings-row">
-        <span class="settings-label">Regular Sweep</span>
-        <span class="settings-value">Every {{ (config_info.app.regular_sweep_interval / 60)|int }} minutes</span>
+<form method="post" action="/dashboard/settings/save" x-data="{ dirty: false }">
+    <div class="card">
+        <div class="card-header">Telegram Alerts</div>
+        <div class="form-group">
+            <label for="telegram_bot_token">Bot Token</label>
+            <input type="password" id="telegram_bot_token" name="telegram_bot_token"
+                   class="form-input" value="{{ env.telegram_bot_token }}"
+                   placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="telegram_chat_id">Chat ID</label>
+            <input type="text" id="telegram_chat_id" name="telegram_chat_id"
+                   class="form-input" value="{{ env.telegram_chat_id }}"
+                   placeholder="-123456789"
+                   @input="dirty = true">
+        </div>
     </div>
-    <div class="settings-row">
-        <span class="settings-label">Mistake Fare Sweep</span>
-        <span class="settings-value">Every {{ (config_info.app.mistake_sweep_interval / 60)|int }} minutes</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Job Coalesce</span>
-        <span class="settings-value">{{ config_info.app.job_coalesce|string }}</span>
-    </div>
-</div>
 
-<div class="card">
-    <div class="card-header">Route Multipliers</div>
-    {% set multipliers = config_info.app.route_multipliers %}
-    <div class="settings-row">
-        <span class="settings-label">Domestic</span>
-        <span class="settings-value">{{ multipliers.domestic }}</span>
+    <div class="card">
+        <div class="card-header">Email (SMTP)</div>
+        <div class="form-group">
+            <label for="smtp_host">SMTP Host</label>
+            <input type="text" id="smtp_host" name="smtp_host"
+                   class="form-input" value="{{ env.smtp_host }}"
+                   placeholder="smtp.gmail.com"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="smtp_port">SMTP Port</label>
+            <input type="number" id="smtp_port" name="smtp_port"
+                   class="form-input" value="{{ env.smtp_port }}"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="smtp_user">SMTP User</label>
+            <input type="text" id="smtp_user" name="smtp_user"
+                   class="form-input" value="{{ env.smtp_user }}"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="smtp_pass">SMTP Password</label>
+            <input type="password" id="smtp_pass" name="smtp_pass"
+                   class="form-input" value="{{ env.smtp_pass }}"
+                   placeholder="Leave blank to keep current"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="email_from">From Address</label>
+            <input type="email" id="email_from" name="email_from"
+                   class="form-input" value="{{ env.email_from }}"
+                   placeholder="alerts@example.com"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="email_to">To Address</label>
+            <input type="email" id="email_to" name="email_to"
+                   class="form-input" value="{{ env.email_to }}"
+                   placeholder="you@example.com"
+                   @input="dirty = true">
+        </div>
     </div>
-    <div class="settings-row">
-        <span class="settings-label">Transatlantic</span>
-        <span class="settings-value">{{ multipliers.transatlantic }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Transpacific</span>
-        <span class="settings-value">{{ multipliers.transpacific }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Latin America</span>
-        <span class="settings-value">{{ multipliers.latin_america }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Europe</span>
-        <span class="settings-value">{{ multipliers.europe }}</span>
-    </div>
-</div>
 
-<div class="card">
-    <div class="card-header">Cache Settings</div>
-    <div class="settings-row">
-        <span class="settings-label">Cache TTL</span>
-        <span class="settings-value">{{ config_info.app.cache_ttl_minutes }} minutes</span>
+    <div class="card">
+        <div class="card-header">Webhook Notifiers</div>
+        <div class="form-group">
+            <label for="slack_webhook_url">Slack Webhook URL</label>
+            <input type="text" id="slack_webhook_url" name="slack_webhook_url"
+                   class="form-input" value="{{ env.slack_webhook_url }}"
+                   placeholder="https://hooks.slack.com/services/..."
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="discord_webhook_url">Discord Webhook URL</label>
+            <input type="text" id="discord_webhook_url" name="discord_webhook_url"
+                   class="form-input" value="{{ env.discord_webhook_url }}"
+                   placeholder="https://discord.com/api/webhooks/..."
+                   @input="dirty = true">
+        </div>
     </div>
-    <div class="settings-row">
-        <span class="settings-label">Max Results Per Route</span>
-        <span class="settings-value">{{ config_info.app.max_results_per_route }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Look Ahead Days</span>
-        <span class="settings-value">{{ config_info.app.look_ahead_days }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Min Price (USD)</span>
-        <span class="settings-value">${{ config_info.app.min_price_usd }}</span>
-    </div>
-    <div class="settings-row">
-        <span class="settings-label">Max Alerts/Hour</span>
-        <span class="settings-value">{{ config_info.app.max_alerts_per_hour }}</span>
-    </div>
-</div>
 
-<div class="card">
-    <div class="card-header">Environment</div>
-    {% set env = config_info.env %}
-    <div class="settings-row">
-        <span class="settings-label">Amadeus Environment</span>
-        <span class="settings-value">{{ env.amadeus_env }}</span>
+    <div class="card">
+        <div class="card-header">Home Airports</div>
+        <div class="form-group">
+            <label for="home_airports">Airport Codes (comma-separated)</label>
+            <input type="text" id="home_airports" name="home_airports"
+                   class="form-input" value="{{ app.home_airports|join(', ') }}"
+                   placeholder="MCI, MCO, ATL"
+                   @input="dirty = true">
+            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.3rem;">
+                Comma-separated IATA airport codes
+            </p>
+        </div>
     </div>
-    <div class="settings-row">
-        <span class="settings-label">Log Level</span>
-        <span class="settings-value">{{ env.log_level }}</span>
-    </div>
-</div>
 
-<div style="text-align: center; margin-top: 1.5rem; padding: 1rem; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border);">
-    Settings are managed via <code>config/app.yaml</code>. Restart the server after making changes.
-</div>
+    <div class="card">
+        <div class="card-header">Deal Thresholds</div>
+        <div class="form-group">
+            <label for="mistake_fare_percent">Mistake Fare (% off)</label>
+            <input type="number" id="mistake_fare_percent" name="mistake_fare_percent"
+                   class="form-input" value="{{ "%.0f"|format(app.deal_thresholds.mistake_fare_percent * 100) }}"
+                   min="1" max="99" step="1"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="deep_flash_percent">Deep Flash (% off)</label>
+            <input type="number" id="deep_flash_percent" name="deep_flash_percent"
+                   class="form-input" value="{{ "%.0f"|format(app.deal_thresholds.deep_flash_percent * 100) }}"
+                   min="1" max="99" step="1"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="flash_sale_percent">Flash Sale (% off)</label>
+            <input type="number" id="flash_sale_percent" name="flash_sale_percent"
+                   class="form-input" value="{{ "%.0f"|format(app.deal_thresholds.flash_sale_percent * 100) }}"
+                   min="1" max="99" step="1"
+                   @input="dirty = true">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Sweep Intervals</div>
+        <div class="form-group">
+            <label for="regular_sweep_interval">Regular Sweep (seconds)</label>
+            <input type="number" id="regular_sweep_interval" name="regular_sweep_interval"
+                   class="form-input" value="{{ app.regular_sweep_interval }}"
+                   min="60" step="60"
+                   @input="dirty = true">
+            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.3rem;">
+                Current: every {{ (app.regular_sweep_interval / 60)|int }} minutes
+            </p>
+        </div>
+        <div class="form-group">
+            <label for="mistake_sweep_interval">Mistake Fare Sweep (seconds)</label>
+            <input type="number" id="mistake_sweep_interval" name="mistake_sweep_interval"
+                   class="form-input" value="{{ app.mistake_sweep_interval }}"
+                   min="60" step="60"
+                   @input="dirty = true">
+            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.3rem;">
+                Current: every {{ (app.mistake_sweep_interval / 60)|int }} minutes
+            </p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Route Multipliers</div>
+        {% set multipliers = app.route_multipliers %}
+        <div class="form-group">
+            <label for="mult_domestic">Domestic</label>
+            <input type="number" id="mult_domestic" name="mult_domestic"
+                   class="form-input" value="{{ multipliers.domestic }}"
+                   min="0.1" max="5" step="0.05"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="mult_transatlantic">Transatlantic</label>
+            <input type="number" id="mult_transatlantic" name="mult_transatlantic"
+                   class="form-input" value="{{ multipliers.transatlantic }}"
+                   min="0.1" max="5" step="0.05"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="mult_transpacific">Transpacific</label>
+            <input type="number" id="mult_transpacific" name="mult_transpacific"
+                   class="form-input" value="{{ multipliers.transpacific }}"
+                   min="0.1" max="5" step="0.05"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="mult_latin_america">Latin America</label>
+            <input type="number" id="mult_latin_america" name="mult_latin_america"
+                   class="form-input" value="{{ multipliers.latin_america }}"
+                   min="0.1" max="5" step="0.05"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="mult_europe">Europe</label>
+            <input type="number" id="mult_europe" name="mult_europe"
+                   class="form-input" value="{{ multipliers.europe }}"
+                   min="0.1" max="5" step="0.05"
+                   @input="dirty = true">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Cache & Limits</div>
+        <div class="form-group">
+            <label for="cache_ttl_minutes">Cache TTL (minutes)</label>
+            <input type="number" id="cache_ttl_minutes" name="cache_ttl_minutes"
+                   class="form-input" value="{{ app.cache_ttl_minutes }}"
+                   min="1" step="1"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="max_results_per_route">Max Results Per Route</label>
+            <input type="number" id="max_results_per_route" name="max_results_per_route"
+                   class="form-input" value="{{ app.max_results_per_route }}"
+                   min="1" max="50" step="1"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="look_ahead_days">Look Ahead Days</label>
+            <input type="number" id="look_ahead_days" name="look_ahead_days"
+                   class="form-input" value="{{ app.look_ahead_days }}"
+                   min="1" max="365" step="1"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="min_price_usd">Min Price (USD)</label>
+            <input type="number" id="min_price_usd" name="min_price_usd"
+                   class="form-input" value="{{ app.min_price_usd }}"
+                   min="1" step="1"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="max_alerts_per_hour">Max Alerts Per Hour</label>
+            <input type="number" id="max_alerts_per_hour" name="max_alerts_per_hour"
+                   class="form-input" value="{{ app.max_alerts_per_hour }}"
+                   min="1" max="100" step="1"
+                   @input="dirty = true">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Long Weekend Monitoring</div>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" name="long_weekend_enabled" value="true"
+                       {% if app.long_weekend.enabled %}checked{% endif %}
+                       @input="dirty = true">
+                <span>Enable long weekend deal monitoring</span>
+            </label>
+        </div>
+        <div class="form-group">
+            <label for="long_weekend_interval">Check Interval (minutes)</label>
+            <input type="number" id="long_weekend_interval" name="long_weekend_interval"
+                   class="form-input" value="{{ app.long_weekend.interval_minutes }}"
+                   min="5" step="5"
+                   @input="dirty = true">
+        </div>
+        <div class="form-group">
+            <label for="long_weekend_look_ahead">Look Ahead (months)</label>
+            <input type="number" id="long_weekend_look_ahead" name="long_weekend_look_ahead"
+                   class="form-input" value="{{ app.long_weekend.look_ahead_months }}"
+                   min="1" max="24" step="1"
+                   @input="dirty = true">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Advanced</div>
+        <div class="form-group">
+            <label for="log_level">Log Level</label>
+            <select id="log_level" name="log_level" class="form-select"
+                    @input="dirty = true">
+                <option value="DEBUG" {% if env.log_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                <option value="INFO" {% if env.log_level == 'INFO' %}selected{% endif %}>INFO</option>
+                <option value="WARNING" {% if env.log_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                <option value="ERROR" {% if env.log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="checkbox-label">
+                <input type="checkbox" name="job_coalesce" value="true"
+                       {% if app.job_coalesce %}checked{% endif %}
+                       @input="dirty = true">
+                <span>Coalesce missed jobs on restart</span>
+            </label>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 0.75rem; margin-bottom: 2rem;">
+        <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center; padding: 0.75rem;">
+            Save All Settings
+        </button>
+        <a href="/dashboard/settings" class="btn btn-secondary" style="padding: 0.75rem 1.5rem;">
+            Reset
+        </a>
+    </div>
+</form>
+
+<style>
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--accent);
+}
+</style>
 {% endblock %}

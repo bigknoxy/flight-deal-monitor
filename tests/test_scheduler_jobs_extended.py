@@ -110,14 +110,20 @@ class TestScanRouteFallbackChain:
 
     @pytest.mark.asyncio
     async def test_scan_route_returns_early_if_recently_seen(self, mock_session):
-        """If is_flight_seen_recently returns True, return empty list."""
+        """If is_flight_seen_recently returns True per airline, skip those flights."""
         with (
             patch("app.scheduler_jobs.is_flight_seen_recently", return_value=True),
-            patch("app.scheduler_jobs.price_cache") as mock_cache,
+            patch("app.scheduler_jobs.calculate_median_price", return_value=500.0),
+            patch("app.scheduler_jobs.price_cache.get_cached_route_data", return_value=None),
+            patch("app.scheduler_jobs.FLIClient") as mock_fli_cls,
         ):
+            mock_fli = MagicMock()
+            mock_fli.search_flights.return_value = [
+                {"validatingAirlineCodes": ["AA"], "price": {"total": "200.0"}, "itineraries": [{"segments": [{"flight": {"number": "100"}}]}]}
+            ]
+            mock_fli_cls.return_value = mock_fli
             result = await _scan_route(mock_session, "MCI", "LHR", "2024-06-01")
             assert result == []
-            mock_cache.get_cached_route_data.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_scan_route_returns_early_if_recently_cached(self, mock_session):

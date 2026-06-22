@@ -1,0 +1,74 @@
+- generic [active] [ref=e1]:
+  - complementary [ref=e2]:
+    - generic [ref=e3]:
+      - heading "✈ Deal Monitor" [level=1] [ref=e4]
+      - generic [ref=e5]: v1.0.0
+    - navigation [ref=e6]:
+      - link "■ Dashboard" [ref=e7] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e8]: ■
+        - text: Dashboard
+      - link "☰ Deals" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard/deals
+        - generic [ref=e10]: ☰
+        - text: Deals
+      - link "←→ Routes" [ref=e11] [cursor=pointer]:
+        - /url: /dashboard/routes
+        - generic [ref=e12]: ←→
+        - text: Routes
+      - link "↻ History" [ref=e13] [cursor=pointer]:
+        - /url: /dashboard/history
+        - generic [ref=e14]: ↻
+        - text: History
+      - link "⚙ Settings" [ref=e15] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - generic [ref=e16]: ⚙
+        - text: Settings
+  - main [ref=e17]:
+    - generic [ref=e18]:
+      - heading "Dashboard" [level=2] [ref=e19]
+      - paragraph [ref=e20]: Overview of your flight deal monitoring system
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]: Total Deals
+        - generic [ref=e24]: "0"
+        - generic [ref=e25]: No deals detected yet
+      - generic [ref=e26]:
+        - generic [ref=e27]: Active Routes
+        - generic [ref=e28]: "19"
+        - generic [ref=e29]: From MCI
+      - generic [ref=e30]:
+        - generic [ref=e31]: Scheduler
+        - generic [ref=e32]: Running
+        - generic [ref=e33]: 3 job(s) configured
+      - generic [ref=e34]:
+        - generic [ref=e35]: Last Sweep
+        - generic [ref=e36]: 0.8s
+        - generic [ref=e38]: Failed
+    - generic [ref=e39]:
+      - generic [ref=e40]: Routes Overview
+      - paragraph [ref=e42]: No deals detected yet. Deals appear here when price drops are found.
+    - generic [ref=e43]:
+      - generic [ref=e44]: Scheduled Jobs
+      - table [ref=e46]:
+        - rowgroup [ref=e47]:
+          - row "Job ID Next Run" [ref=e48]:
+            - columnheader "Job" [ref=e49]
+            - columnheader "ID" [ref=e50]
+            - columnheader "Next Run" [ref=e51]
+        - rowgroup [ref=e52]:
+          - row "Mistake Fare Sweep mistake_sweep 2026-06-21T23:31:32.069950+00:00" [ref=e53]:
+            - cell "Mistake Fare Sweep" [ref=e54]:
+              - strong [ref=e55]: Mistake Fare Sweep
+            - cell "mistake_sweep" [ref=e56]
+            - cell "2026-06-21T23:31:32.069950+00:00" [ref=e57]
+          - row "Regular Flight Price Sweep regular_sweep 2026-06-21T23:46:32.069706+00:00" [ref=e58]:
+            - cell "Regular Flight Price Sweep" [ref=e59]:
+              - strong [ref=e60]: Regular Flight Price Sweep
+            - cell "regular_sweep" [ref=e61]
+            - cell "2026-06-21T23:46:32.069706+00:00" [ref=e62]
+          - row "Expired Deal Cleanup cleanup 2026-06-22T23:16:32.070066+00:00" [ref=e63]:
+            - cell "Expired Deal Cleanup" [ref=e64]:
+              - strong [ref=e65]: Expired Deal Cleanup
+            - cell "cleanup" [ref=e66]
+            - cell "2026-06-22T23:16:32.070066+00:00" [ref=e67]

@@ -1,0 +1,112 @@
+- generic [active] [ref=e1]:
+  - complementary [ref=e2]:
+    - generic [ref=e3]:
+      - heading "✈ Deal Monitor" [level=1] [ref=e4]
+      - generic [ref=e5]: v1.0.0
+    - navigation [ref=e6]:
+      - link "■ Dashboard" [ref=e7] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e8]: ■
+        - text: Dashboard
+      - link "☰ Deals" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard/deals
+        - generic [ref=e10]: ☰
+        - text: Deals
+      - link "←→ Routes" [ref=e11] [cursor=pointer]:
+        - /url: /dashboard/routes
+        - generic [ref=e12]: ←→
+        - text: Routes
+      - link "↻ History" [ref=e13] [cursor=pointer]:
+        - /url: /dashboard/history
+        - generic [ref=e14]: ↻
+        - text: History
+      - link "⚙ Settings" [ref=e15] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - generic [ref=e16]: ⚙
+        - text: Settings
+  - main [ref=e17]:
+    - generic [ref=e18]:
+      - heading "Settings" [level=2] [ref=e19]
+      - paragraph [ref=e20]: Current application configuration (read-only)
+    - generic [ref=e21]:
+      - generic [ref=e22]: Application
+      - generic [ref=e23]:
+        - generic [ref=e24]: Name
+        - generic [ref=e25]: flight-deal-monitor
+      - generic [ref=e26]:
+        - generic [ref=e27]: Version
+        - generic [ref=e28]: 1.0.0
+      - generic [ref=e29]:
+        - generic [ref=e30]: Home Airports
+        - generic [ref=e31]: MCI
+      - generic [ref=e32]:
+        - generic [ref=e33]: Destinations
+        - generic [ref=e34]: 19 configured
+    - generic [ref=e35]:
+      - generic [ref=e36]: Deal Thresholds
+      - generic [ref=e37]:
+        - generic [ref=e38]: Mistake Fare (70%+)
+        - generic [ref=e39]: 70%
+      - generic [ref=e40]:
+        - generic [ref=e41]: Deep Flash (65%+)
+        - generic [ref=e42]: 65%
+      - generic [ref=e43]:
+        - generic [ref=e44]: Flash Sale (50%+)
+        - generic [ref=e45]: 50%
+    - generic [ref=e46]:
+      - generic [ref=e47]: Sweep Intervals
+      - generic [ref=e48]:
+        - generic [ref=e49]: Regular Sweep
+        - generic [ref=e50]: Every 30 minutes
+      - generic [ref=e51]:
+        - generic [ref=e52]: Mistake Fare Sweep
+        - generic [ref=e53]: Every 15 minutes
+      - generic [ref=e54]:
+        - generic [ref=e55]: Job Coalesce
+        - generic [ref=e56]: "True"
+    - generic [ref=e57]:
+      - generic [ref=e58]: Route Multipliers
+      - generic [ref=e59]:
+        - generic [ref=e60]: Domestic
+        - generic [ref=e61]: "1.0"
+      - generic [ref=e62]:
+        - generic [ref=e63]: Transatlantic
+        - generic [ref=e64]: "0.8"
+      - generic [ref=e65]:
+        - generic [ref=e66]: Transpacific
+        - generic [ref=e67]: "0.7"
+      - generic [ref=e68]:
+        - generic [ref=e69]: Latin America
+        - generic [ref=e70]: "1.2"
+      - generic [ref=e71]:
+        - generic [ref=e72]: Europe
+        - generic [ref=e73]: "0.85"
+    - generic [ref=e74]:
+      - generic [ref=e75]: Cache Settings
+      - generic [ref=e76]:
+        - generic [ref=e77]: Cache TTL
+        - generic [ref=e78]: 360 minutes
+      - generic [ref=e79]:
+        - generic [ref=e80]: Max Results Per Route
+        - generic [ref=e81]: "10"
+      - generic [ref=e82]:
+        - generic [ref=e83]: Look Ahead Days
+        - generic [ref=e84]: "90"
+      - generic [ref=e85]:
+        - generic [ref=e86]: Min Price (USD)
+        - generic [ref=e87]: $100
+      - generic [ref=e88]:
+        - generic [ref=e89]: Max Alerts/Hour
+        - generic [ref=e90]: "10"
+    - generic [ref=e91]:
+      - generic [ref=e92]: Environment
+      - generic [ref=e93]:
+        - generic [ref=e94]: Amadeus Environment
+        - generic [ref=e95]: test
+      - generic [ref=e96]:
+        - generic [ref=e97]: Log Level
+        - generic [ref=e98]: INFO
+    - generic [ref=e99]:
+      - text: Settings are managed via
+      - code [ref=e100]: config/app.yaml
+      - text: . Restart the server after making changes.

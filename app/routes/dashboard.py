@@ -1,6 +1,8 @@
 """Dashboard routes for the web UI."""
 
+import logging
 import os
+from datetime import datetime
 
 import yaml
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -14,6 +16,8 @@ from app.models.flight import FlightDeal
 from app.models.job import JobRun
 from app.scheduler import get_scheduler_status
 from app.templates import render
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -37,9 +41,23 @@ async def _get_deals(
     origin: str | None = None,
     destination: str | None = None,
 ) -> dict:
-    """Get flight deals with optional filtering (reused from main.py)."""
+    """Get flight deals grouped by route+date+airline, showing cheapest per group."""
     async with AsyncSessionLocal() as session:
-        query = select(FlightDeal).order_by(FlightDeal.seen_at.desc())
+        query = select(
+            FlightDeal.origin,
+            FlightDeal.destination,
+            FlightDeal.departure_date,
+            FlightDeal.airline,
+            func.min(FlightDeal.current_price_usd).label("cheapest_price"),
+            func.min(FlightDeal.original_price_usd).label("original_price"),
+            func.min(FlightDeal.price_drop_percent).label("max_drop"),
+            func.min(FlightDeal.id).label("first_id"),
+            func.min(FlightDeal.booking_url).label("booking_url"),
+            func.min(FlightDeal.seen_at).label("seen_at"),
+            func.min(FlightDeal.deal_type).label("deal_type"),
+            func.min(FlightDeal.flight_numbers).label("flight_numbers"),
+            func.count().label("option_count"),
+        ).where(FlightDeal.expired_at > datetime.utcnow())
 
         if deal_type:
             query = query.where(FlightDeal.deal_type == deal_type)
@@ -48,13 +66,20 @@ async def _get_deals(
         if destination:
             query = query.where(FlightDeal.destination == destination.upper())
 
+        query = query.group_by(
+            FlightDeal.origin,
+            FlightDeal.destination,
+            FlightDeal.departure_date,
+            FlightDeal.airline,
+        ).order_by(func.min(FlightDeal.seen_at).desc())
+
         count_query = select(func.count()).select_from(query.subquery())
         total_result = await session.execute(count_query)
         total_count = total_result.scalar() or 0
 
         query = query.offset(offset).limit(limit)
         result = await session.execute(query)
-        deals = result.scalars().all()
+        rows = result.all()
 
         return {
             "total": total_count,
@@ -62,21 +87,22 @@ async def _get_deals(
             "offset": offset,
             "deals": [
                 {
-                    "id": d.id,
-                    "route_id": d.route_id,
-                    "origin": d.origin,
-                    "destination": d.destination,
-                    "departure_date": d.departure_date,
-                    "airline": d.airline,
-                    "flight_numbers": d.flight_numbers,
-                    "original_price_usd": d.original_price_usd,
-                    "current_price_usd": d.current_price_usd,
-                    "price_drop_percent": d.price_drop_percent,
-                    "deal_type": d.deal_type,
-                    "booking_url": d.booking_url,
-                    "seen_at": d.seen_at.isoformat() if d.seen_at else None,
+                    "id": r.first_id,
+                    "route_id": f"{r.origin}-{r.destination}-{r.departure_date}-{r.airline}",
+                    "origin": r.origin,
+                    "destination": r.destination,
+                    "departure_date": r.departure_date,
+                    "airline": r.airline,
+                    "flight_numbers": r.flight_numbers,
+                    "original_price_usd": r.original_price,
+                    "current_price_usd": r.cheapest_price,
+                    "price_drop_percent": r.max_drop,
+                    "deal_type": r.deal_type,
+                    "booking_url": r.booking_url,
+                    "seen_at": r.seen_at.isoformat() if r.seen_at else None,
+                    "option_count": r.option_count,
                 }
-                for d in deals
+                for r in rows
             ],
         }
 
@@ -149,6 +175,16 @@ async def _get_config_display() -> dict:
             "job_coalesce": config.app.job_coalesce,
         },
         "env": {
+            "telegram_bot_token": config.env.telegram_bot_token,
+            "telegram_chat_id": config.env.telegram_chat_id,
+            "smtp_host": config.env.smtp_host,
+            "smtp_port": config.env.smtp_port,
+            "smtp_user": config.env.smtp_user,
+            "smtp_pass": config.env.smtp_pass,
+            "email_from": config.env.email_from,
+            "email_to": config.env.email_to,
+            "slack_webhook_url": config.env.slack_webhook_url,
+            "discord_webhook_url": config.env.discord_webhook_url,
             "amadeus_env": config.env.amadeus_env,
             "log_level": config.env.log_level,
         },
@@ -279,7 +315,7 @@ async def dashboard_deals_partial(
 
     if not rows:
         return HTMLResponse(
-            '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted);">No deals match your filters.</td></tr>'
+            '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted);">No deals match your filters.</td></tr>'
         )
 
     return HTMLResponse("".join(rows))
@@ -420,6 +456,8 @@ async def dashboard_history(
 async def dashboard_settings(
     request: Request,
     user: dict = Depends(require_login),
+    saved: bool = False,
+    save_error: str | None = None,
 ) -> HTMLResponse:
     """Settings display page."""
     config_info = await _get_config_display()
@@ -427,5 +465,159 @@ async def dashboard_settings(
         request,
         "dashboard/settings.html",
         active_page="settings",
-        config_info=config_info,
+        app=config_info["app"],
+        env=config_info["env"],
+        saved=saved,
+        save_error=save_error,
     )
+
+
+@router.post("/dashboard/settings/save")
+async def dashboard_settings_save(
+    request: Request,
+    user: dict = Depends(require_login),
+    telegram_bot_token: str = Form(""),
+    telegram_chat_id: str = Form(""),
+    smtp_host: str = Form(""),
+    smtp_port: int = Form(587),
+    smtp_user: str = Form(""),
+    smtp_pass: str = Form(""),
+    email_from: str = Form(""),
+    email_to: str = Form(""),
+    slack_webhook_url: str = Form(""),
+    discord_webhook_url: str = Form(""),
+    home_airports: str = Form(""),
+    mistake_fare_percent: int = Form(70),
+    deep_flash_percent: int = Form(65),
+    flash_sale_percent: int = Form(50),
+    regular_sweep_interval: int = Form(1800),
+    mistake_sweep_interval: int = Form(900),
+    mult_domestic: float = Form(1.0),
+    mult_transatlantic: float = Form(0.8),
+    mult_transpacific: float = Form(0.7),
+    mult_latin_america: float = Form(1.2),
+    mult_europe: float = Form(0.85),
+    cache_ttl_minutes: int = Form(360),
+    max_results_per_route: int = Form(10),
+    look_ahead_days: int = Form(90),
+    min_price_usd: int = Form(100),
+    max_alerts_per_hour: int = Form(10),
+    long_weekend_enabled: str = Form("false"),
+    long_weekend_interval: int = Form(60),
+    long_weekend_look_ahead: int = Form(12),
+    log_level: str = Form("INFO"),
+    job_coalesce: str = Form("true"),
+) -> HTMLResponse:
+    """Save all settings to config/app.yaml and .env."""
+    try:
+        # --- Save app.yaml ---
+        yaml_path = "config/app.yaml"
+        if os.path.exists(yaml_path):
+            with open(yaml_path) as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            data = {}
+
+        airports = [a.strip().upper() for a in home_airports.split(",") if a.strip()]
+
+        data["app"] = {
+            "home_airports": airports,
+            "destinations": config.app.destinations,
+            "deal_thresholds": {
+                "mistake_fare_percent": mistake_fare_percent / 100.0,
+                "deep_flash_percent": deep_flash_percent / 100.0,
+                "flash_sale_percent": flash_sale_percent / 100.0,
+            },
+            "regular_sweep_interval": regular_sweep_interval,
+            "mistake_sweep_interval": mistake_sweep_interval,
+            "route_multipliers": {
+                "domestic": mult_domestic,
+                "transatlantic": mult_transatlantic,
+                "transpacific": mult_transpacific,
+                "latin_america": mult_latin_america,
+                "europe": mult_europe,
+            },
+            "cache_ttl_minutes": cache_ttl_minutes,
+            "max_results_per_route": max_results_per_route,
+            "look_ahead_days": look_ahead_days,
+            "look_back_days": config.app.look_back_days,
+            "min_price_usd": min_price_usd,
+            "max_alerts_per_hour": max_alerts_per_hour,
+            "job_coalesce": job_coalesce == "true",
+            "long_weekend": {
+                "enabled": long_weekend_enabled == "true",
+                "interval_minutes": long_weekend_interval,
+                "look_ahead_months": long_weekend_look_ahead,
+            },
+            "flexible_dates": {
+                "enabled": config.app.flexible_dates.enabled,
+                "range_days": config.app.flexible_dates.range_days,
+            },
+            "multi_city": {
+                "enabled": config.app.multi_city.enabled,
+                "max_stops": config.app.multi_city.max_stops,
+            },
+        }
+
+        with open(yaml_path, "w") as f:
+            yaml.dump(data, f, default_flow_style=False)
+
+        _reload_config()
+
+        # --- Save .env ---
+        env_path = ".env"
+        env_lines = []
+        env_updates = {
+            "TELEGRAM_BOT_TOKEN": telegram_bot_token,
+            "TELEGRAM_CHAT_ID": telegram_chat_id,
+            "SMTP_HOST": smtp_host,
+            "SMTP_PORT": str(smtp_port),
+            "SMTP_USER": smtp_user,
+            "EMAIL_FROM": email_from,
+            "EMAIL_TO": email_to,
+            "SLACK_WEBHOOK_URL": slack_webhook_url,
+            "DISCORD_WEBHOOK_URL": discord_webhook_url,
+            "LOG_LEVEL": log_level.upper(),
+        }
+        if smtp_pass:
+            env_updates["SMTP_PASS"] = smtp_pass
+
+        if os.path.exists(env_path):
+            with open(env_path) as f:
+                for line in f:
+                    stripped = line.strip()
+                    if "=" in stripped and not stripped.startswith("#"):
+                        key = stripped.split("=", 1)[0].strip()
+                        if key in env_updates:
+                            val = env_updates.pop(key)
+                            if val:
+                                env_lines.append(f"{key}={val}\n")
+                            continue
+                    env_lines.append(line)
+
+        for key, val in env_updates.items():
+            if val:
+                env_lines.append(f"{key}={val}\n")
+
+        with open(env_path, "w") as f:
+            f.writelines(env_lines)
+
+        # Reload env config
+        from app.config import EnvConfig  # noqa: PLC0415
+        config.env = EnvConfig()
+
+        # Rebuild Telegram bot with new token
+        from app.alert import telegram_bot  # noqa: PLC0415
+        telegram_bot.bot_token = config.env.telegram_bot_token
+        telegram_bot.chat_id = config.env.telegram_chat_id
+        telegram_bot.base_url = f"https://api.telegram.org/bot{telegram_bot.bot_token}"
+
+        return await dashboard_settings(
+            request, user, saved=True, save_error=None
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to save settings: {e}")
+        return await dashboard_settings(
+            request, user, saved=False, save_error=str(e)
+        )

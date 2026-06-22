@@ -33,6 +33,22 @@ from app.utils.price_analysis import (
 logger = logging.getLogger(__name__)
 
 
+def _build_google_flights_url(
+    origin: str,
+    destination: str,
+    departure_date: str,
+    return_date: str | None = None,
+    airline: str = "",
+) -> str:
+    """Build a Google Flights search URL with specific dates and route."""
+    params = f"q=Flights+to+{destination}+from+{origin}+on+{departure_date}"
+    if return_date:
+        params += f"+return+on+{return_date}"
+    if airline:
+        params += f"+{airline}"
+    return f"https://www.google.com/travel/flights?{params}"
+
+
 async def run_regular_sweep() -> None:
     """Run regular flight price sweep."""
     logger.info("Starting regular flight price sweep")
@@ -191,16 +207,6 @@ async def _scan_route(
         return_date: Optional return date for round-trip searches.
     """
     deals = []
-    route_id = generate_route_id(
-        origin, destination, departure_date, "", suffix=route_suffix
-    )
-
-    if await is_flight_seen_recently(session, route_id):
-        return deals
-
-    median_price = await calculate_median_price(
-        session, origin, destination, config.app.look_back_days
-    )
 
     cached_data = await price_cache.get_cached_route_data(
         origin, destination, departure_date
@@ -217,7 +223,6 @@ async def _scan_route(
 
     flights = []
     try:
-        # Try fli first (FREE - Google Flights via curl_cffi)
         fli_client = FLIClient()
         flights = await asyncio.get_event_loop().run_in_executor(
             None,
@@ -235,7 +240,6 @@ async def _scan_route(
 
     if not flights:
         try:
-            # SearchAPI ($4/1K)
             searchapi = SearchAPIClient()
             flights = await searchapi.search_flights(
                 origin, destination, departure_date, config.app.max_results_per_route
@@ -266,7 +270,16 @@ async def _scan_route(
                     logger.error(f"Duffel search also failed: {e3}")
                     return deals
 
-    # Check each flight for deals
+    if not flights:
+        return deals
+
+    median_price = await calculate_median_price(
+        session, origin, destination, config.app.look_back_days
+    )
+
+    seen_airlines: set[str] = set()
+    baseline_price: float | None = None
+
     for flight in flights:
         try:
             airline = flight.get("validatingAirlineCodes", ["Unknown"])[0]
@@ -277,17 +290,35 @@ async def _scan_route(
                 ]
             )
             price = float(flight.get("price", {}).get("total", 0))
-            booking_url = flight.get(
-                "booking_url", "https://www.google.com/travel/flights"
+            booking_url = _build_google_flights_url(
+                origin, destination, departure_date, return_date, airline
             )
 
             if price < config.app.min_price_usd:
                 continue
 
-            is_deal, deal_type = detect_deal(price, median_price, origin, destination)
+            route_id = generate_route_id(
+                origin, destination, departure_date, airline, suffix=route_suffix
+            )
 
-            if is_deal:
-                price_drop = calculate_price_drop(price, median_price)
+            if await is_flight_seen_recently(session, route_id):
+                continue
+
+            if airline in seen_airlines:
+                continue
+            seen_airlines.add(airline)
+
+            if median_price is None:
+                if baseline_price is None or price < baseline_price:
+                    baseline_price = price
+                effective_median = baseline_price
+            else:
+                effective_median = median_price
+
+            is_deal, deal_type = detect_deal(price, effective_median, origin, destination)
+
+            if is_deal or median_price is None:
+                price_drop = calculate_price_drop(price, effective_median)
 
                 deal = FlightDeal(
                     route_id=route_id,
@@ -296,10 +327,10 @@ async def _scan_route(
                     departure_date=departure_date,
                     airline=airline,
                     flight_numbers=flight_numbers,
-                    original_price_usd=median_price,
+                    original_price_usd=effective_median,
                     current_price_usd=price,
                     price_drop_percent=price_drop,
-                    deal_type=deal_type,
+                    deal_type=deal_type or "baseline",
                     booking_url=booking_url,
                 )
 

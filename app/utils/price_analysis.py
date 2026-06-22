@@ -33,8 +33,12 @@ async def calculate_median_price(
     origin: str,
     destination: str,
     days_back: int = 30,
-) -> float:
-    """Calculate median price for a route over the last N days."""
+) -> float | None:
+    """Calculate median price for a route over the last N days.
+
+    Returns None if no price history exists (caller should use current
+    search results to establish a baseline instead of a hardcoded default).
+    """
     cutoff = datetime.utcnow() - timedelta(days=days_back)
 
     query = (
@@ -48,10 +52,9 @@ async def calculate_median_price(
     prices: list[float] = [row[0] for row in result.all()]
 
     if not prices:
-        logger.warning(f"No price history for {origin}->{destination}, using default")
-        return 500.0  # Default fallback price
+        logger.info(f"No price history for {origin}->{destination}, using search results as baseline")
+        return None
 
-    # Calculate median
     sorted_prices = sorted(prices)
     n = len(sorted_prices)
     if n % 2 == 0:

@@ -1,0 +1,45 @@
+- generic [active] [ref=e1]:
+  - complementary [ref=e2]:
+    - generic [ref=e3]:
+      - heading "✈ Deal Monitor" [level=1] [ref=e4]
+      - generic [ref=e5]: v1.0.0
+    - navigation [ref=e6]:
+      - link "■ Dashboard" [ref=e7] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e8]: ■
+        - text: Dashboard
+      - link "☰ Deals" [ref=e9] [cursor=pointer]:
+        - /url: /dashboard/deals
+        - generic [ref=e10]: ☰
+        - text: Deals
+      - link "←→ Routes" [ref=e11] [cursor=pointer]:
+        - /url: /dashboard/routes
+        - generic [ref=e12]: ←→
+        - text: Routes
+      - link "↻ History" [ref=e13] [cursor=pointer]:
+        - /url: /dashboard/history
+        - generic [ref=e14]: ↻
+        - text: History
+      - link "⚙ Settings" [ref=e15] [cursor=pointer]:
+        - /url: /dashboard/settings
+        - generic [ref=e16]: ⚙
+        - text: Settings
+  - main [ref=e17]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - heading "✈ Deal Monitor" [level=1] [ref=e21]
+        - paragraph [ref=e22]: Sign in to your account
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - generic [ref=e25]: Email
+          - textbox "Email" [ref=e26]:
+            - /placeholder: you@example.com
+        - generic [ref=e27]:
+          - generic [ref=e28]: Password
+          - textbox "Password" [ref=e29]:
+            - /placeholder: At least 6 characters
+        - button "Sign In" [ref=e30] [cursor=pointer]
+      - generic [ref=e31]:
+        - text: Don't have an account?
+        - link "Register" [ref=e32] [cursor=pointer]:
+          - /url: /auth/register

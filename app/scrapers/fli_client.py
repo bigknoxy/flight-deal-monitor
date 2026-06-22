@@ -81,41 +81,13 @@ class FLIClient:
 
         segment = {"flight": {"number": leg.flight_number} if leg else {}}
 
-        # Build booking URL from token
-        booking_url = ""
-        if result.booking_token:
-            token = result.booking_token
-            if token.startswith('["') and token.endswith('"]'):
-                # Extract token string from JSON array
-                try:
-                    import json
-
-                    token_data = json.loads(token)
-                    actual_token = token_data[0] if token_data else None
-                except json.JSONDecodeError:
-                    actual_token = token
-            else:
-                actual_token = token
-
-            if actual_token:
-                # Clean up token for URL
-                clean_token = (
-                    actual_token.replace('"', "")
-                    .replace("+", "")
-                    .replace("/", "")
-                    .replace("=", "")
-                )
-                booking_url = (
-                    f"https://www.google.com/travel/flights?q={clean_token[:100]}"
-                )
-
         return {
             "validatingAirlineCodes": [result.primary_airline_name],
             "itineraries": [{"segments": [segment]}],
             "price": {"total": f"{result.price:.2f}"},
             "type": "One way",
             "total_duration": result.duration,
-            "booking_url": booking_url,
+            "booking_url": "",
         }
 
 

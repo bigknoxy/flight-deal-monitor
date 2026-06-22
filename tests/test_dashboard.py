@@ -204,27 +204,24 @@ class TestDashboardDeals:
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 
-        mock_deal = MagicMock()
-        mock_deal.id = 1
-        mock_deal.route_id = "MCI-LHR-2024-06-01"
-        mock_deal.origin = "MCI"
-        mock_deal.destination = "LHR"
-        mock_deal.departure_date = "2024-06-01"
-        mock_deal.airline = "BA"
-        mock_deal.flight_numbers = "BA123"
-        mock_deal.original_price_usd = 500.0
-        mock_deal.current_price_usd = 150.0
-        mock_deal.price_drop_percent = 70.0
-        mock_deal.deal_type = "mistake_fare"
-        mock_deal.booking_url = "https://example.com/book"
-        mock_deal.seen_at = None
+        from collections import namedtuple
+        DealRow = namedtuple("DealRow", [
+            "origin", "destination", "departure_date", "airline",
+            "cheapest_price", "original_price", "max_drop", "first_id",
+            "booking_url", "seen_at", "deal_type", "flight_numbers", "option_count"
+        ])
+        mock_row = DealRow(
+            origin="MCI", destination="LHR", departure_date="2024-06-01",
+            airline="BA", cheapest_price=150.0, original_price=500.0,
+            max_drop=70.0, first_id=1, booking_url="https://example.com/book",
+            seen_at=None, deal_type="mistake_fare", flight_numbers="BA123",
+            option_count=1
+        )
 
         mock_count_result = MagicMock()
         mock_count_result.scalar.return_value = 1
-        mock_data_scalars = MagicMock()
-        mock_data_scalars.all.return_value = [mock_deal]
         mock_data_result = MagicMock()
-        mock_data_result.scalars.return_value = mock_data_scalars
+        mock_data_result.all.return_value = [mock_row]
         mock_session.execute.side_effect = [mock_count_result, mock_data_result]
 
         with (
@@ -234,7 +231,6 @@ class TestDashboardDeals:
             response = await client.get("/dashboard/deals/partial?offset=20&limit=20")
             assert response.status_code == 200
             assert "text/html" in response.headers["content-type"]
-            # Partial should contain deal rows, not full page
             assert "MCI" in response.text
             assert "LHR" in response.text
 
@@ -244,27 +240,24 @@ class TestDashboardDeals:
         mock_session.__aenter__.return_value = mock_session
         mock_session.__aexit__.return_value = None
 
-        mock_deal = MagicMock()
-        mock_deal.id = 1
-        mock_deal.route_id = "JFK-LHR-2024-06-01"
-        mock_deal.origin = "JFK"
-        mock_deal.destination = "LHR"
-        mock_deal.departure_date = "2024-06-01"
-        mock_deal.airline = "VS"
-        mock_deal.flight_numbers = "VS123"
-        mock_deal.original_price_usd = 300.0
-        mock_deal.current_price_usd = 90.0
-        mock_deal.price_drop_percent = 70.0
-        mock_deal.deal_type = "mistake_fare"
-        mock_deal.booking_url = "https://example.com/book"
-        mock_deal.seen_at = None
+        from collections import namedtuple
+        DealRow = namedtuple("DealRow", [
+            "origin", "destination", "departure_date", "airline",
+            "cheapest_price", "original_price", "max_drop", "first_id",
+            "booking_url", "seen_at", "deal_type", "flight_numbers", "option_count"
+        ])
+        mock_row = DealRow(
+            origin="JFK", destination="LHR", departure_date="2024-06-01",
+            airline="VS", cheapest_price=90.0, original_price=300.0,
+            max_drop=70.0, first_id=1, booking_url="https://example.com/book",
+            seen_at=None, deal_type="mistake_fare", flight_numbers="VS123",
+            option_count=1
+        )
 
         mock_count_result = MagicMock()
         mock_count_result.scalar.return_value = 1
-        mock_data_scalars = MagicMock()
-        mock_data_scalars.all.return_value = [mock_deal]
         mock_data_result = MagicMock()
-        mock_data_result.scalars.return_value = mock_data_scalars
+        mock_data_result.all.return_value = [mock_row]
         mock_session.execute.side_effect = [mock_count_result, mock_data_result]
 
         with (
@@ -518,7 +511,7 @@ class TestDashboardSettings:
             assert "Deal Thresholds" in response.text
             assert "Sweep Intervals" in response.text
             assert "Route Multipliers" in response.text
-            assert "Cache Settings" in response.text
+            assert "Cache TTL" in response.text
 
     @pytest.mark.asyncio
     async def test_settings_shows_config_values(self, client, mock_auth):

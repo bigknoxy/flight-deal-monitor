@@ -7,6 +7,11 @@
     <td><span class="price-drop positive">-{{ "%.1f"|format(deal.price_drop_percent) }}%</span></td>
     <td><span class="deal-badge {{ deal.deal_type }}">{{ deal.deal_type|replace('_', ' ') }}</span></td>
     <td>
+        {% if deal.option_count and deal.option_count > 1 %}
+        <span class="option-count" title="{{ deal.option_count }} options found">{{ deal.option_count }}x</span>
+        {% endif %}
+    </td>
+    <td>
         {% if deal.booking_url %}
         <a href="{{ deal.booking_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-primary">Book</a>
         {% else %}
