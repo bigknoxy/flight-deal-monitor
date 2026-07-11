@@ -41,7 +41,7 @@ class TestFLIClientToDict:
         assert d["type"] == "One way"
         assert d["total_duration"] == 480
 
-       def test_to_dict_with_booking_token(self):
+    def test_to_dict_with_booking_token(self):
         """_to_dict always returns empty booking_url; scheduler builds it."""
         result = _make_mock_flight_result(
             booking_token='["CMgBEJf...aEkg=="]',
@@ -51,7 +51,7 @@ class TestFLIClientToDict:
 
         assert d["booking_url"] == ""
 
-       def test_to_dict_token_without_json_array(self):
+    def test_to_dict_token_without_json_array(self):
         """_to_dict consistently returns empty booking_url; scheduler builds it."""
         result = _make_mock_flight_result(
             booking_token="simple_token_string",
