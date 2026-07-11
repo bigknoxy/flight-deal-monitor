@@ -41,28 +41,25 @@ class TestFLIClientToDict:
         assert d["type"] == "One way"
         assert d["total_duration"] == 480
 
-    def test_to_dict_with_booking_token(self):
-        """Booking token should be cleaned and added to URL."""
+       def test_to_dict_with_booking_token(self):
+        """_to_dict always returns empty booking_url; scheduler builds it."""
         result = _make_mock_flight_result(
             booking_token='["CMgBEJf...aEkg=="]',
         )
         client = FLIClient()
         d = client._to_dict(result)
 
-        assert "google.com/travel/flights" in d.get("booking_url", "")
-        assert "booking_url" in d
+        assert d["booking_url"] == ""
 
-    def test_to_dict_token_without_json_array(self):
-        """Token that doesn't look like JSON array should be handled."""
+       def test_to_dict_token_without_json_array(self):
+        """_to_dict consistently returns empty booking_url; scheduler builds it."""
         result = _make_mock_flight_result(
             booking_token="simple_token_string",
         )
         client = FLIClient()
         d = client._to_dict(result)
 
-        assert "booking_url" in d
-        # Token string is used directly in URL (fli behavior)
-        assert d["booking_url"] != ""
+        assert d["booking_url"] == ""
 
     def test_to_dict_no_legs(self):
         """Result with no legs should handle gracefully."""
@@ -74,8 +71,6 @@ class TestFLIClientToDict:
 
         segments = d["itineraries"][0]["segments"]
         assert len(segments) == 1
-        # When legs is empty, segment might be {} or {"flight": {}}
-        # depending on mock behavior; just verify it doesn't crash
         assert d["price"]["total"] == "350.50"
 
     def test_to_dict_no_booking_token(self):
@@ -94,7 +89,6 @@ class TestFLIClientSearch:
         """When airport code is invalid, return empty list."""
         with patch("app.scrapers.fli_client.Airport") as mock_airport:
             mock_airport.INVALID = None
-            # getattr will return None for any airport
             del mock_airport.MCI
             del mock_airport.LHR
 
@@ -118,9 +112,5 @@ class TestFLIClientSearch:
 
             with patch.object(FLIClient, "search_flights", return_value=[]):
                 client = FLIClient()
-
-                # Can't actually test search because it calls self.searcher.search
-                # which is a real fli SearchFlights instance. Just verify the
-                # _to_dict conversion works with mock flight data.
                 result = client._to_dict(mock_result)
                 assert result["price"]["total"] == "300.00"
