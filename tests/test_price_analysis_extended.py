@@ -4,11 +4,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.models.flight import PriceObservation
 from app.utils.price_analysis import (
     apply_route_multiplier,
     calculate_median_price,
     detect_deal,
+    generate_route_id,
     get_route_type,
+    record_price_observations,
 )
 
 
@@ -17,7 +20,7 @@ class TestCalculateMedianPrice:
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_history(self):
-        """When no price history exists, must return None (caller uses search results as baseline)."""
+        """Cold-start: with no observations the route has no baseline, so None."""
         mock_session = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
@@ -34,7 +37,7 @@ class TestCalculateMedianPrice:
         mock_result.all.return_value = [(300.0,)]
         mock_session.execute.return_value = mock_result
 
-        median = await calculate_median_price(mock_session, "MCI", "LHR", days_back=30)
+        median = await calculate_median_price(mock_session, "MCI", "LHR", days_back=30, min_samples=1)
         assert median == 300.0
 
     @pytest.mark.asyncio
@@ -45,7 +48,7 @@ class TestCalculateMedianPrice:
         mock_result.all.return_value = [(100.0,), (200.0,), (300.0,), (400.0,)]
         mock_session.execute.return_value = mock_result
 
-        median = await calculate_median_price(mock_session, "MCI", "LHR")
+        median = await calculate_median_price(mock_session, "MCI", "LHR", min_samples=1)
         assert median == 250.0  # (200 + 300) / 2
 
     @pytest.mark.asyncio
@@ -56,7 +59,7 @@ class TestCalculateMedianPrice:
         mock_result.all.return_value = [(100.0,), (200.0,), (300.0,)]
         mock_session.execute.return_value = mock_result
 
-        median = await calculate_median_price(mock_session, "MCI", "LHR")
+        median = await calculate_median_price(mock_session, "MCI", "LHR", min_samples=1)
         assert median == 200.0
 
     @pytest.mark.asyncio
@@ -67,7 +70,7 @@ class TestCalculateMedianPrice:
         mock_result.all.return_value = [(500.0,), (100.0,), (300.0,)]
         mock_session.execute.return_value = mock_result
 
-        median = await calculate_median_price(mock_session, "MCI", "LHR")
+        median = await calculate_median_price(mock_session, "MCI", "LHR", min_samples=1)
         assert median == 300.0
 
 
@@ -203,3 +206,168 @@ class TestDetectDealWithRouteMultiplier:
         is_deal, deal_type = detect_deal(250.0, 500.0)
         assert is_deal is True
         assert deal_type == "flash_sale"
+
+
+class TestRecordPriceObservations:
+    """Tests for accumulating a real market baseline (B21)."""
+
+    @pytest.mark.asyncio
+    async def test_records_valid_prices_only(self):
+        """Record only positive prices above the floor; skip junk/invalid."""
+        from app.utils.price_analysis import record_price_observations
+
+        mock_session = AsyncMock()
+        mock_session.add_all = MagicMock()
+
+        flights = [
+            {"validatingAirlineCodes": ["AA"], "price": {"total": "300.00"}},
+            {"validatingAirlineCodes": ["DL"], "price": {"total": "0"}},  # below floor
+            {"validatingAirlineCodes": ["UA"], "price": {"total": "not-a-number"}},  # invalid
+        ]
+
+        n = await record_price_observations(
+            mock_session, "MCI", "LHR", "2024-06-01", flights, min_price_usd=100.0
+        )
+        assert n == 1
+        mock_session.add_all.assert_called_once()
+
+
+class TestTripTypeDiscriminator:
+    """Tier 1: trip_type field threaded through route IDs, medians, and observations."""
+
+    def test_generate_route_id_differs_by_trip_type(self):
+        """Same args but different trip_type must produce different hashes."""
+        hash_ow = generate_route_id("MCI", "LHR", "2024-06-01", "BA", trip_type="one_way")
+        hash_rt = generate_route_id("MCI", "LHR", "2024-06-01", "BA", trip_type="round_trip")
+        assert hash_ow != hash_rt
+
+    def test_generate_route_id_with_suffix_and_trip_type(self):
+        """Suffix and trip_type combine correctly."""
+        h1 = generate_route_id("MCI", "LHR", "2024-06-01", "BA", suffix="-long-weekend", trip_type="one_way")
+        h2 = generate_route_id("MCI", "LHR", "2024-06-01", "BA", suffix="-long-weekend", trip_type="round_trip")
+        assert h1 != h2
+
+    @pytest.mark.asyncio
+    async def test_calculate_median_price_scoped_by_trip_type(self):
+        """calculate_median_price filters by trip_type — only matching rows used."""
+        mock_session = AsyncMock()
+
+        # Simulate the DB returning only one_way prices (as if the WHERE clause worked)
+        mock_result = MagicMock()
+        mock_result.all.return_value = [(200.0,), (200.0,), (200.0,)]
+        mock_session.execute.return_value = mock_result
+
+        median = await calculate_median_price(
+            mock_session, "MCI", "LHR", days_back=30, min_samples=1, trip_type="one_way"
+        )
+        assert median == 200.0
+
+    @pytest.mark.asyncio
+    async def test_record_price_observations_sets_trip_type(self):
+        """record_price_observations must set trip_type on each PriceObservation row."""
+        mock_session = AsyncMock()
+        mock_session.add_all = MagicMock()
+
+        flights = [
+            {"validatingAirlineCodes": ["BA"], "price": {"total": "300.00"}},
+            {"validatingAirlineCodes": ["DL"], "price": {"total": "400.00"}},
+        ]
+
+        n = await record_price_observations(
+            mock_session, "MCI", "LHR", "2024-06-01", flights,
+            trip_type="round_trip",
+        )
+        assert n == 2
+        mock_session.add_all.assert_called_once()
+
+        # Inspect the rows passed to add_all
+        call_args = mock_session.add_all.call_args[0][0]
+        assert len(call_args) == 2
+        for row in call_args:
+            assert isinstance(row, PriceObservation)
+            assert row.trip_type == "round_trip"
+
+    @pytest.mark.asyncio
+    async def test_record_price_observations_default_one_way(self):
+        """Default trip_type is one_way when not specified."""
+        mock_session = AsyncMock()
+        mock_session.add_all = MagicMock()
+
+        flights = [
+            {"validatingAirlineCodes": ["AA"], "price": {"total": "150.00"}},
+        ]
+
+        await record_price_observations(
+            mock_session, "MCI", "LHR", "2024-06-01", flights,
+        )
+
+        call_args = mock_session.add_all.call_args[0][0]
+        assert call_args[0].trip_type == "one_way"
+
+
+class TestMLFeaturePrecomputation:
+    """ML features pre-computed at PriceObservation write time (swyx rec #1)."""
+
+    @pytest.mark.asyncio
+    async def test_ml_features_populated_for_valid_date(self):
+        """days_until_departure, departure_month, day_of_week, bucket set."""
+        from datetime import datetime, timedelta
+
+        from app.utils.price_analysis import record_price_observations
+
+        mock_session = AsyncMock()
+        mock_session.add_all = MagicMock()
+
+        future = (datetime.utcnow() + timedelta(days=45)).strftime("%Y-%m-%d")
+        flights = [{"validatingAirlineCodes": ["AA"], "price": {"total": "300.00"}}]
+
+        await record_price_observations(mock_session, "MCI", "LHR", future, flights)
+
+        row: PriceObservation = mock_session.add_all.call_args[0][0][0]
+        assert row.days_until_departure is not None
+        assert 44 <= row.days_until_departure <= 46
+        assert row.departure_month == int(future.split("-")[1])
+        assert row.departure_day_of_week is not None
+        assert row.booking_window_bucket == "22-60d"
+
+    @pytest.mark.asyncio
+    async def test_ml_features_bucket_boundaries(self):
+        """Booking window buckets: 0-7d, 8-21d, 22-60d, 61+d."""
+        from datetime import datetime, timedelta
+
+        from app.utils.price_analysis import record_price_observations
+
+        for days, expected_bucket in [
+            (3, "0-7d"),
+            (14, "8-21d"),
+            (45, "22-60d"),
+            (90, "61+d"),
+        ]:
+            mock_session = AsyncMock()
+            mock_session.add_all = MagicMock()
+            future = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
+            flights = [{"validatingAirlineCodes": ["AA"], "price": {"total": "200.00"}}]
+            await record_price_observations(mock_session, "MCI", "LHR", future, flights)
+            row = mock_session.add_all.call_args[0][0][0]
+            assert row.booking_window_bucket == expected_bucket, (
+                f"days={days} expected {expected_bucket} got {row.booking_window_bucket}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_ml_features_none_for_invalid_date(self):
+        """Invalid departure_date → ML features are None, row still created."""
+        from app.utils.price_analysis import record_price_observations
+
+        mock_session = AsyncMock()
+        mock_session.add_all = MagicMock()
+
+        flights = [{"validatingAirlineCodes": ["AA"], "price": {"total": "300.00"}}]
+        await record_price_observations(
+            mock_session, "MCI", "LHR", "not-a-date", flights
+        )
+
+        row = mock_session.add_all.call_args[0][0][0]
+        assert row.days_until_departure is None
+        assert row.departure_month is None
+        assert row.departure_day_of_week is None
+        assert row.booking_window_bucket is None
