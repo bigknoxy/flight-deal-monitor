@@ -6,6 +6,7 @@ from passlib.hash import bcrypt
 from sqlalchemy import select
 
 from app.auth import create_session
+from app.config import config
 from app.database import AsyncSessionLocal
 from app.models.user import User
 from app.templates import render
@@ -13,15 +14,22 @@ from app.templates import render
 router = APIRouter()
 
 
+def _registration_open() -> bool:
+    """Registration is open unless explicitly disabled via env."""
+    return not config.env.registration_disabled
+
+
 def _login_redirect(user_id: int) -> RedirectResponse:
     token = create_session(user_id)
     response = RedirectResponse(url="/dashboard", status_code=303)
+    # Only mark the session cookie secure when behind HTTPS (e.g. a TLS
+    # reverse proxy). Local/plain-HTTP dev stays usable.
     response.set_cookie(
         key="session",
         value=token,
         httponly=True,
         max_age=86400 * 7,
-        secure=False,
+        secure=config.env.session_secure,
         samesite="lax",
     )
     return response
@@ -57,6 +65,8 @@ async def login(
 @router.get("/auth/register", response_class=HTMLResponse)
 async def register_page(request: Request) -> HTMLResponse:
     """Render the registration page."""
+    if not _registration_open():
+        return RedirectResponse(url="/auth/login", status_code=303)
     return render(request, "auth/register.html", error=None)
 
 
@@ -67,6 +77,9 @@ async def register(
     password: str = Form(...),
 ) -> HTMLResponse:
     """Create a new user and auto-login."""
+    if not _registration_open():
+        return RedirectResponse(url="/auth/login", status_code=303)
+
     if not email or "@" not in email:
         return render(
             request,

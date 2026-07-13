@@ -85,7 +85,7 @@
         <div class="route-card">
             <div class="route-name">{{ rd.origin }} &rarr; {{ rd.destination }}</div>
             <div class="route-meta">
-                <span class="route-price">${{ "%.0f"|format(rd.current_price) }}</span>
+                <span class="route-price">${{ "%.0f"|format(rd.current_price) }}</span> <span class="trip-tag">1-way · RT on Google</span>
                 <span class="route-trend {% if rd.trend == 'up' %}up{% elif rd.trend == 'down' %}down{% else %}flat{% endif %}">
                     {% if rd.trend == 'up' %}&uarr;{% elif rd.trend == 'down' %}&darr;{% else %}&rarr;{% endif %}
                 </span>

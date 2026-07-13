@@ -50,3 +50,11 @@ app:
     latin_america: 1.2
     transatlantic: 0.8
     transpacific: 0.7
+  # Tier-2 round-trip enrichment (off by default). When true, each confirmed
+  # one-way deal is enriched with ONE real round-trip lookup (SearchAPI ->
+  # Amadeus -> Duffel), cached 24h, on its own quota + 30s timeout. Without a
+  # paid provider key it falls back to a clearly-labeled derived estimate.
+  round_trip_enrichment: true
+  max_rt_lookups_per_hour: 20
+  rt_cache_ttl_hours: 24
+  rt_return_offset_days: 3
