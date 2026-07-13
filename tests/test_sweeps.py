@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.config import config
 from app.scheduler_jobs import run_mistake_sweep, run_regular_sweep
 
 
 class TestRegularSweepLifecycle:
-
     @pytest.mark.asyncio
     async def test_regular_sweep_with_deals(self):
         """With deals found, alerts should be sent and recorded."""
@@ -26,7 +26,9 @@ class TestRegularSweepLifecycle:
             patch("app.scheduler_jobs._scan_route", return_value=[deal]),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._complete_job_run") as mock_complete,
-            patch("app.scheduler_jobs.telegram_bot.send_alert", return_value="msg_1") as mock_send,
+            patch(
+                "app.alert_dispatch.telegram_bot.send_alert", return_value="msg_1"
+            ) as mock_send,
         ):
             mock_job_run = MagicMock()
             mock_start.return_value = mock_job_run
@@ -55,7 +57,9 @@ class TestRegularSweepLifecycle:
             patch("app.scheduler_jobs._scan_route", return_value=[deal]),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._complete_job_run") as mock_complete,
-            patch("app.scheduler_jobs.telegram_bot.send_alert", return_value=None) as mock_send,
+            patch(
+                "app.alert_dispatch.telegram_bot.send_alert", return_value=None
+            ) as mock_send,
         ):
             mock_job_run = MagicMock()
             mock_start.return_value = mock_job_run
@@ -67,6 +71,7 @@ class TestRegularSweepLifecycle:
             args, _ = mock_complete.call_args
             assert args[1] > 0  # deals_detected
             assert args[2] == 0  # alerts_sent (failed)
+
     """Test the top-level regular sweep function with mocked dependencies."""
 
     @pytest.mark.asyncio
@@ -96,7 +101,9 @@ class TestRegularSweepLifecycle:
     async def test_regular_sweep_failure(self):
         """When regular sweep fails, _fail_job_run should be called."""
         with (
-            patch("app.scheduler_jobs.AsyncSessionLocal", side_effect=Exception("DB down")),
+            patch(
+                "app.scheduler_jobs.AsyncSessionLocal", side_effect=Exception("DB down")
+            ),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._fail_job_run") as mock_fail,
         ):
@@ -138,7 +145,9 @@ class TestMistakeSweepLifecycle:
     async def test_mistake_sweep_failure(self):
         """When mistake sweep fails, _fail_job_run should be called."""
         with (
-            patch("app.scheduler_jobs.AsyncSessionLocal", side_effect=Exception("timeout")),
+            patch(
+                "app.scheduler_jobs.AsyncSessionLocal", side_effect=Exception("timeout")
+            ),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._fail_job_run") as mock_fail,
         ):
@@ -166,7 +175,9 @@ class TestMistakeSweepLifecycle:
             patch("app.scheduler_jobs._scan_route", return_value=[mistake_deal]),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._complete_job_run") as mock_complete,
-            patch("app.scheduler_jobs.telegram_bot.send_alert", return_value="msg_123") as mock_send,
+            patch(
+                "app.alert_dispatch.telegram_bot.send_alert", return_value="msg_123"
+            ) as mock_send,
         ):
             mock_job_run = MagicMock()
             mock_start.return_value = mock_job_run
@@ -175,10 +186,11 @@ class TestMistakeSweepLifecycle:
 
             mock_send.assert_called()
             mock_complete.assert_called_once()
-            # 4 routes x 30 days = 120 iterations, each returns mistake_deal
+            # Every home-airport x destination x 30 days returns the mistake_deal
+            expected = len(config.app.home_airports) * len(config.app.destinations) * 30
             args, _ = mock_complete.call_args
-            assert args[1] == 120  # deals_detected
-            assert args[2] == 120  # alerts_sent
+            assert args[1] == expected  # deals_detected
+            assert args[2] == expected  # alerts_sent
 
     @pytest.mark.asyncio
     async def test_mistake_sweep_with_alert_failure(self):
@@ -197,7 +209,9 @@ class TestMistakeSweepLifecycle:
             patch("app.scheduler_jobs._scan_route", return_value=[mistake_deal]),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._complete_job_run") as mock_complete,
-            patch("app.scheduler_jobs.telegram_bot.send_alert", return_value=None) as mock_send,
+            patch(
+                "app.alert_dispatch.telegram_bot.send_alert", return_value=None
+            ) as mock_send,
         ):
             mock_job_run = MagicMock()
             mock_start.return_value = mock_job_run
@@ -206,9 +220,10 @@ class TestMistakeSweepLifecycle:
 
             mock_send.assert_called()
             mock_complete.assert_called_once()
-            # deals_detected=120 (4 routes x 30 days), alerts_sent=0 (send fails)
+            # deals_detected = every home x dest x 30 days; alerts_sent=0 (send fails)
+            expected = len(config.app.home_airports) * len(config.app.destinations) * 30
             args, _ = mock_complete.call_args
-            assert args[1] == 120  # deals_detected
+            assert args[1] == expected  # deals_detected
             assert args[2] == 0  # alerts_sent
 
     @pytest.mark.asyncio
@@ -226,7 +241,7 @@ class TestMistakeSweepLifecycle:
             patch("app.scheduler_jobs._scan_route", return_value=[flash_deal]),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._complete_job_run") as mock_complete,
-            patch("app.scheduler_jobs.telegram_bot") as mock_bot,
+            patch("app.alert_dispatch.telegram_bot") as mock_bot,
         ):
             mock_job_run = MagicMock()
             mock_start.return_value = mock_job_run

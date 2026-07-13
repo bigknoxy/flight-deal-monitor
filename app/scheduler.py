@@ -18,11 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 # Job store for persistence
-jobstores = {
-    "default": SQLAlchemyJobStore(
-        url=config.env.database_url.replace("sqlite://", "sqlite:///")
-    )
-}
+# config.env.database_url is already a valid SQLAlchemy URL
+# (e.g. "sqlite:///./data/flight_deals.db"), so use it verbatim.
+jobstores = {"default": SQLAlchemyJobStore(url=config.env.database_url)}
 
 # Executor
 executors = {
