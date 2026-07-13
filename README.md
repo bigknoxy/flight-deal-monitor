@@ -16,10 +16,10 @@ pip install -r requirements.txt
 cp config/.env.example .env   # then edit .env with your API keys
 
 # Run the app
-python -m app.main             # starts on http://localhost:8000
+python -m app.main             # starts on http://localhost:8787
 
 # Open the dashboard
-open http://localhost:8000/dashboard
+open http://localhost:8787/dashboard
 
 # Run tests
 pytest tests/ -v
@@ -29,7 +29,7 @@ ruff check app/ tests/
 
 # Docker
 docker-compose up -d           # starts containerized app
-curl http://localhost:8000/health  # verify health
+curl http://localhost:8787/health  # verify health
 ```
 
 ## Features ✨
@@ -97,7 +97,7 @@ curl http://localhost:8000/health  # verify health
    python -m app.main
    ```
 
-The app will start on `http://localhost:8000`
+The app will start on `http://localhost:8787`
 
 ### Docker Deployment
 
@@ -113,12 +113,12 @@ The app will start on `http://localhost:8000`
 
 3. **Check health status**:
    ```bash
-   curl http://localhost:8000/health
+   curl http://localhost:8787/health
    ```
 
 ## Web UI Dashboard 🖥️
 
-The dashboard is available at `http://localhost:8000/dashboard` after registering an account.
+The dashboard is available at `http://localhost:8787/dashboard` after registering an account.
 
 ### Pages
 
@@ -601,7 +601,7 @@ image: ghcr.io/bigknoxy/flight-deal-monitor:latest
 ### Health Checks
 ```bash
 # Check app health
-curl http://localhost:8000/health
+curl http://localhost:8787/health
 
 # Check logs
 docker-compose logs -f app
@@ -637,7 +637,7 @@ docker-compose logs -f app
 
 **Issue**: Dashboard shows "Not Found"
 - **Solution**: Ensure you're registered and logged in
-- **Solution**: Check that the app is running on port 8000
+- **Solution**: Check that the app is running on port 8787
 
 ## Architecture
 
