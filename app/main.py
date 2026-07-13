@@ -1,20 +1,27 @@
 """FastAPI application entry point."""
 
 import logging
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from passlib.hash import bcrypt
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from app.alert import telegram_bot
+from app.bot import bot_handler
 from app.config import config
 from app.database import AsyncSessionLocal, close_db, init_db
+from app.job_lifecycle import reconcile_stale_job_runs
 from app.models.flight import FlightDeal
+from app.models.job import JobRun
+from app.models.user import User
 from app.routes.auth import router as auth_router
 from app.routes.dashboard import router as dashboard_router
 from app.scheduler import (
@@ -33,21 +40,79 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _seed_admin_user() -> None:
+    """Bootstrap an admin account when registration is disabled.
+
+    If REGISTRATION_DISABLED is set and no users exist yet, create the admin
+    from ADMIN_EMAIL / ADMIN_PASSWORD so the operator is never locked out of a
+    fresh, locked-down deployment.
+    """
+    if not config.env.registration_disabled:
+        return
+    if not (config.env.admin_email and config.env.admin_password):
+        logger.warning(
+            "Registration is disabled but ADMIN_EMAIL/ADMIN_PASSWORD are not "
+            "set; no admin will be created. The app will be inaccessible until "
+            "an account is seeded manually."
+        )
+        return
+
+    async with AsyncSessionLocal() as session:
+        count = await session.execute(select(func.count()).select_from(User))
+        if (count.scalar() or 0) > 0:
+            return
+        admin = User(
+            email=config.env.admin_email,
+            password_hash=bcrypt.hash(config.env.admin_password),
+        )
+        session.add(admin)
+        await session.commit()
+        logger.info(f"Seeded admin user: {config.env.admin_email}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     # Startup
     logger.info("Starting flight deal monitor...")
     await init_db()
-    await telegram_bot.test_connection()
+    # Recover JobRun rows orphaned by a previous crash/SIGKILL so the dashboard
+    # run history stays truthful. Best-effort: never blocks boot on a DB hiccup.
+    try:
+        await reconcile_stale_job_runs()
+    except Exception as e:
+        logger.warning(f"JobRun reconciliation skipped (continuing): {e}")
+    # Admin seed is best-effort: a DB hiccup during seeding must never crash
+    # startup (the app still boots and serves, auth just has no seeded admin).
+    try:
+        await _seed_admin_user()
+    except Exception as e:
+        logger.warning(f"Admin user seed skipped (continuing): {e}")
+
+    # Telegram is optional. A missing/failed bot token must not crash startup;
+    # the scheduler and API still work (alerts simply won't deliver).
+    if config.env.telegram_bot_token:
+        try:
+            await telegram_bot.test_connection()
+        except Exception as e:
+            logger.warning(f"Telegram test connection failed (continuing): {e}")
+    else:
+        logger.info("No TELEGRAM_BOT_TOKEN set; skipping Telegram boot check.")
+
     setup_jobs()
     start_scheduler()
+    # Start interactive Telegram bot polling (best-effort, never blocks boot).
+    try:
+        await bot_handler.start_polling()
+    except Exception as e:
+        logger.warning(f"Telegram bot polling start skipped (continuing): {e}")
     logger.info("Flight deal monitor started successfully")
 
     yield
 
     # Shutdown
     logger.info("Shutting down flight deal monitor...")
+    await bot_handler.stop_polling()
     shutdown_scheduler()
     await close_db()
     logger.info("Flight deal monitor shutdown complete")
@@ -62,7 +127,9 @@ app = FastAPI(
 )
 
 # Mount static files and dashboard routes
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+app.mount(
+    "/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static"
+)
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 
@@ -84,14 +151,43 @@ async def root() -> RedirectResponse:
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    """Health check endpoint."""
-    scheduler_status = get_scheduler_status()
+    """Health check endpoint.
 
-    return HealthResponse(
-        status="healthy" if scheduler_status["running"] else "unhealthy",
-        scheduler_running=scheduler_status["running"],
-        jobs=scheduler_status["jobs"],
-        job_count=scheduler_status["job_count"],
+    Returns 503 (not 200) when the scheduler is not running OR a JobRun is
+    stuck ``running`` past the reconcile window — i.e. the scheduler process is
+    alive but wedged and not self-healing. This lets an orchestrator actually
+    restart a dead worker instead of believing the monitor is healthy forever.
+    """
+    scheduler_status = get_scheduler_status()
+    healthy = scheduler_status["running"]
+
+    if healthy:
+        try:
+            cutoff = datetime.utcnow() - timedelta(
+                seconds=3600  # mirrors scheduler_jobs.RECONCILE_MAX_AGE_SECONDS
+            )
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(JobRun)
+                    .where(JobRun.completed_at.is_(None))
+                    .where(JobRun.started_at < cutoff)
+                    .limit(1)
+                )
+                if result.scalar_one_or_none() is not None:
+                    healthy = False
+        except Exception:
+            # If we can't introspect, trust the scheduler's own running flag.
+            pass
+
+    status_code = 200 if healthy else 503
+    return JSONResponse(
+        status_code=status_code,
+        content=HealthResponse(
+            status="healthy" if healthy else "unhealthy",
+            scheduler_running=scheduler_status["running"],
+            jobs=scheduler_status["jobs"],
+            job_count=scheduler_status["job_count"],
+        ).model_dump(),
     )
 
 
@@ -200,9 +296,8 @@ async def deal_stats() -> dict:
         total_result = await session.execute(total_query)
         total = total_result.scalar() or 0
 
-        type_query = (
-            select(FlightDeal.deal_type, func.count())
-            .group_by(FlightDeal.deal_type)
+        type_query = select(FlightDeal.deal_type, func.count()).group_by(
+            FlightDeal.deal_type
         )
         type_result = await session.execute(type_query)
         by_type = dict(type_result.all())
@@ -234,7 +329,9 @@ async def deal_price_history(
 ) -> dict:
     """Get price history for a route."""
     async with AsyncSessionLocal() as session:
-        return await get_price_history(session, origin.upper(), destination.upper(), days)
+        return await get_price_history(
+            session, origin.upper(), destination.upper(), days
+        )
 
 
 @app.get("/deals/{deal_id}", response_model=dict)
@@ -270,10 +367,15 @@ async def get_deal(deal_id: int) -> dict:
 if __name__ == "__main__":
     import uvicorn
 
+    # reload defaults OFF: running multiple app instances (or a reloader +
+    # scheduler) would spawn duplicate sweeps. Enable only for local dev via
+    # APP_RELOAD=true.
+    reload = os.environ.get("APP_RELOAD", "false").lower() == "true"
+    port = int(os.environ.get("APP_PORT", "8787"))
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
+        reload=reload,
         log_level=config.env.log_level.lower(),
     )

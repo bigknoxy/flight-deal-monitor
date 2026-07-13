@@ -437,9 +437,9 @@ class TestSendDealAlertCallsAllNotifiers:
         mock_session.add = MagicMock()
 
         with (
-            patch("app.scheduler_jobs.telegram_bot") as mock_telegram,
-            patch("app.scheduler_jobs.slack_notifier") as mock_slack,
-            patch("app.scheduler_jobs.discord_notifier") as mock_discord,
+            patch("app.alert_dispatch.telegram_bot") as mock_telegram,
+            patch("app.alert_dispatch.slack_notifier") as mock_slack,
+            patch("app.alert_dispatch.discord_notifier") as mock_discord,
         ):
             mock_telegram.send_alert = AsyncMock(return_value="msg_123")
             mock_slack.send_alert = AsyncMock(return_value="sent")
@@ -456,15 +456,17 @@ class TestSendDealAlertCallsAllNotifiers:
             mock_discord.send_alert.assert_awaited_once_with(deal)
 
     @pytest.mark.asyncio
-    async def test_alerts_sent_zero_when_telegram_fails(self, make_deal):
+    async def test_alerts_sent_when_other_notifiers_succeed(self, make_deal):
+        """Telegram failing no longer means the alert is lost — if slack or
+        discord deliver, the deal is considered sent."""
         deal = make_deal()
         mock_session = AsyncMock()
         mock_session.add = MagicMock()
 
         with (
-            patch("app.scheduler_jobs.telegram_bot") as mock_telegram,
-            patch("app.scheduler_jobs.slack_notifier") as mock_slack,
-            patch("app.scheduler_jobs.discord_notifier") as mock_discord,
+            patch("app.alert_dispatch.telegram_bot") as mock_telegram,
+            patch("app.alert_dispatch.slack_notifier") as mock_slack,
+            patch("app.alert_dispatch.discord_notifier") as mock_discord,
         ):
             mock_telegram.send_alert = AsyncMock(return_value=None)
             mock_slack.send_alert = AsyncMock(return_value="sent")
@@ -475,7 +477,7 @@ class TestSendDealAlertCallsAllNotifiers:
             deals, alerts = await _send_deal_alert(mock_session, deal)
 
             assert deals == 1
-            assert alerts == 0
+            assert alerts == 1
             mock_telegram.send_alert.assert_awaited_once_with(deal)
             mock_slack.send_alert.assert_awaited_once_with(deal)
             mock_discord.send_alert.assert_awaited_once_with(deal)
@@ -487,9 +489,9 @@ class TestSendDealAlertCallsAllNotifiers:
         mock_session.add = MagicMock()
 
         with (
-            patch("app.scheduler_jobs.telegram_bot") as mock_telegram,
-            patch("app.scheduler_jobs.slack_notifier") as mock_slack,
-            patch("app.scheduler_jobs.discord_notifier") as mock_discord,
+            patch("app.alert_dispatch.telegram_bot") as mock_telegram,
+            patch("app.alert_dispatch.slack_notifier") as mock_slack,
+            patch("app.alert_dispatch.discord_notifier") as mock_discord,
         ):
             mock_telegram.send_alert = AsyncMock(return_value="msg_123")
             mock_slack.send_alert = AsyncMock(side_effect=Exception("Slack down"))

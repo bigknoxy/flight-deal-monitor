@@ -1,6 +1,7 @@
 """Telegram alert integration."""
 
 import logging
+import time
 
 import httpx
 
@@ -8,6 +9,22 @@ from app.config import config
 from app.models.flight import FlightDeal
 
 logger = logging.getLogger(__name__)
+
+# Cap on error alerts per hour so a recurring failure can't spam Telegram.
+_ERROR_ALERT_LIMIT = 5
+_error_alert_timestamps: list[float] = []
+
+
+def _error_alert_allowed() -> bool:
+    """Sliding-window gate for error alerts (max _ERROR_ALERT_LIMIT/hour)."""
+    now = time.monotonic()
+    cutoff = now - 3600.0
+    while _error_alert_timestamps and _error_alert_timestamps[0] < cutoff:
+        _error_alert_timestamps.pop(0)
+    if len(_error_alert_timestamps) >= _ERROR_ALERT_LIMIT:
+        return False
+    _error_alert_timestamps.append(now)
+    return True
 
 
 class TelegramBot:
@@ -21,8 +38,29 @@ class TelegramBot:
         self.last_hour_reset = None
 
     async def send_alert(self, flight_deal: FlightDeal) -> str | None:
-        """Send flight deal alert to Telegram."""
-        # Rate limiting
+        """Send flight deal alert to Telegram.
+
+        Fans out to all interactive bot subscribers first, then falls back
+        to the legacy hardcoded chat_id for backward compat.
+        """
+        from app.bot import bot_handler
+
+        # Interactive bot subscribers get the alert first.
+        try:
+            subscriber_ids = await bot_handler.send_alert_to_subscribers(flight_deal)
+        except Exception:
+            subscriber_ids = []
+        if subscriber_ids:
+            self.alerts_sent_this_hour += 1
+            logger.info(
+                f"Sent alert to {len(subscriber_ids)} subscriber(s) for {flight_deal.route_id}"
+            )
+            return subscriber_ids[0]
+
+        # Legacy fallback: send to the hardcoded chat_id.
+        if not self.chat_id:
+            return None
+
         if self._is_rate_limited():
             logger.warning("Rate limited: skipping alert")
             return None
@@ -92,6 +130,10 @@ _Deal expires in 24 hours or when inventory runs out_"""
 
     async def send_error_alert(self, message: str) -> bool:
         """Send error alert to Telegram."""
+        if not _error_alert_allowed():
+            logger.warning("Error-alert budget exhausted for this hour; skipping")
+            return False
+
         url = f"{self.base_url}/sendMessage"
         params = {
             "chat_id": self.chat_id,
