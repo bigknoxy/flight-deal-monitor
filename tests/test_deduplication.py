@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.models.flight import FlightDeal
+from app.models.flight import AlertHistory, FlightDeal
 from app.utils import (
     cleanup_expired_deals,
     generate_deal_hash,
@@ -55,13 +55,12 @@ async def test_mark_flight_seen():
 
 @pytest.mark.asyncio
 async def test_is_flight_seen_recently_true():
-    """Test is_flight_seen_recently when flight was seen."""
+    """Test is_flight_seen_recently when flight was seen and alert delivered."""
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
         mock_session = AsyncMock()
         mock_session_cls.return_value = mock_session
 
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = FlightDeal(
+        deal = FlightDeal(
             route_id="test_route",
             origin="MCI",
             destination="LHR",
@@ -77,7 +76,16 @@ async def test_is_flight_seen_recently_true():
             expired_at=datetime.utcnow() + timedelta(hours=12),
         )
 
-        mock_session.execute.return_value = mock_result
+        mock_deal_result = MagicMock()
+        mock_deal_result.scalar_one_or_none.return_value = deal
+
+        mock_alert_result = MagicMock()
+        mock_alert_result.scalar_one_or_none.return_value = AlertHistory(
+            flight_deal_id=1,
+            status="sent",
+        )
+
+        mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
 
         is_seen = await is_flight_seen_recently(mock_session, "test_route")
 
@@ -95,6 +103,123 @@ async def test_is_flight_seen_recently_false():
         mock_result.scalar_one_or_none.return_value = None
 
         mock_session.execute.return_value = mock_result
+
+        is_seen = await is_flight_seen_recently(mock_session, "test_route")
+
+        assert is_seen is False
+
+
+@pytest.mark.asyncio
+async def test_is_flight_seen_recently_retries_on_failed_alert():
+    """If the most recent alert for a seen deal was 'failed', allow retry."""
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+
+        deal = FlightDeal(
+            id=1,
+            route_id="test_route",
+            origin="MCI",
+            destination="LHR",
+            departure_date="2024-06-01",
+            airline="BA",
+            flight_numbers="BA123",
+            original_price_usd=500.0,
+            current_price_usd=300.0,
+            price_drop_percent=40.0,
+            deal_type="flash_sale",
+            booking_url="https://example.com",
+            seen_at=datetime.utcnow(),
+            expired_at=datetime.utcnow() + timedelta(hours=12),
+        )
+
+        mock_deal_result = MagicMock()
+        mock_deal_result.scalar_one_or_none.return_value = deal
+
+        mock_alert_result = MagicMock()
+        mock_alert_result.scalar_one_or_none.return_value = AlertHistory(
+            flight_deal_id=1,
+            status="failed",
+        )
+
+        mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
+
+        is_seen = await is_flight_seen_recently(mock_session, "test_route")
+
+        assert is_seen is False
+
+
+@pytest.mark.asyncio
+async def test_is_flight_seen_recently_retries_on_rate_limited_alert():
+    """If the most recent alert was 'rate_limited', allow retry."""
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+
+        deal = FlightDeal(
+            id=1,
+            route_id="test_route",
+            origin="MCI",
+            destination="LHR",
+            departure_date="2024-06-01",
+            airline="BA",
+            flight_numbers="BA123",
+            original_price_usd=500.0,
+            current_price_usd=300.0,
+            price_drop_percent=40.0,
+            deal_type="flash_sale",
+            booking_url="https://example.com",
+            seen_at=datetime.utcnow(),
+            expired_at=datetime.utcnow() + timedelta(hours=12),
+        )
+
+        mock_deal_result = MagicMock()
+        mock_deal_result.scalar_one_or_none.return_value = deal
+
+        mock_alert_result = MagicMock()
+        mock_alert_result.scalar_one_or_none.return_value = AlertHistory(
+            flight_deal_id=1,
+            status="rate_limited",
+        )
+
+        mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
+
+        is_seen = await is_flight_seen_recently(mock_session, "test_route")
+
+        assert is_seen is False
+
+
+@pytest.mark.asyncio
+async def test_is_flight_seen_recently_no_alert_history_retries():
+    """If a seen deal has no AlertHistory rows at all, allow retry."""
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+
+        deal = FlightDeal(
+            id=1,
+            route_id="test_route",
+            origin="MCI",
+            destination="LHR",
+            departure_date="2024-06-01",
+            airline="BA",
+            flight_numbers="BA123",
+            original_price_usd=500.0,
+            current_price_usd=300.0,
+            price_drop_percent=40.0,
+            deal_type="flash_sale",
+            booking_url="https://example.com",
+            seen_at=datetime.utcnow(),
+            expired_at=datetime.utcnow() + timedelta(hours=12),
+        )
+
+        mock_deal_result = MagicMock()
+        mock_deal_result.scalar_one_or_none.return_value = deal
+
+        mock_alert_result = MagicMock()
+        mock_alert_result.scalar_one_or_none.return_value = None
+
+        mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
 
         is_seen = await is_flight_seen_recently(mock_session, "test_route")
 

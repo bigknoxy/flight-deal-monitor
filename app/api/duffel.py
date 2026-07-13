@@ -22,6 +22,7 @@ class DuffelClient:
         destination: str,
         departure_date: str,
         max_results: int = 10,
+        return_date: str | None = None,
     ) -> list[dict]:
         """Search for flights using Duffel API."""
         url = f"{self.base_url}/air/offer_requests"
@@ -31,21 +32,31 @@ class DuffelClient:
             "Content-Type": "application/json",
         }
 
+        slices = [
+            {
+                "origin": origin,
+                "destination": destination,
+                "departure_date": departure_date,
+            }
+        ]
+        if return_date:
+            slices.append(
+                {
+                    "origin": destination,
+                    "destination": origin,
+                    "departure_date": return_date,
+                }
+            )
+
         data = {
             "data": {
-                "slices": [
-                    {
-                        "origin": origin,
-                        "destination": destination,
-                        "departure_date": departure_date,
-                    }
-                ],
+                "slices": slices,
                 "passengers": [{"type": "adult"}],
                 "max_offers": max_results,
             }
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(url, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
@@ -54,7 +65,7 @@ class DuffelClient:
 
         # Get offers
         url = f"{self.base_url}/air/offer_requests/{offer_request_id}/offers"
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             result = response.json()

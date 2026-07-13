@@ -28,22 +28,26 @@ class SearchAPIClient:
         arrival_id: str,
         date: str,
         max_results: int = 10,
+        return_date: str | None = None,
     ) -> list[dict[str, Any]]:
         """Search for flights using SearchAPI Google Flights API.
 
         Normalizes the response to match the format expected by
         the downstream deal-detection pipeline (same shape as Amadeus).
+        Pass ``return_date`` to request round-trip fares.
         """
         params: dict[str, Any] = {
             "engine": "google_flights",
-            "flight_type": "one_way",
+            "flight_type": "round_trip" if return_date else "one_way",
             "departure_id": departure_id,
             "arrival_id": arrival_id,
             "outbound_date": date,
             "api_key": self.api_key,
         }
+        if return_date:
+            params["return_date"] = return_date
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(self.base_url, params=params)
             response.raise_for_status()
             result = response.json()

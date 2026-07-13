@@ -1,10 +1,17 @@
 """Configuration management using Pydantic Settings."""
 
+import logging
 import os
 
 import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+# Sentinel default that must never reach production. Sessions are signed with
+# this key, so leaving it unchanged lets anyone forge an admin cookie.
+DEFAULT_SECRET_KEY = "change-me-in-production"
 
 
 class DealThresholds(BaseSettings):
@@ -89,11 +96,31 @@ class AppConfig(BaseSettings):
     min_price_usd: int = 100
     max_alerts_per_hour: int = 10
 
+    # Minimum number of accumulated price observations required before a route
+    # is considered to have a real baseline. Below this, scans are cold-start
+    # and emit no alerts (prevents first-scan false positives).
+    min_baseline_samples: int = 5
+
     regular_sweep_interval: int = 1800
     mistake_sweep_interval: int = 900
     job_coalesce: bool = True
 
     cache_ttl_minutes: int = 360
+
+    # When fli (the free source) errors, fall back to paid providers.
+    # Disabled by default to avoid burning paid quota on transient fli hiccups;
+    # only genuine emptiness (no results) is considered a real miss.
+    fallback_on_fli_error: bool = False
+
+    fli_site_packages: str = ""
+
+    # Tier-2 round-trip enrichment: when enabled, a confirmed one-way deal
+    # triggers exactly ONE lazy paid round-trip lookup (never during the free
+    # sweep). Off by default so the monitor stays $0 until the operator opts in.
+    round_trip_enrichment: bool = False
+    max_rt_lookups_per_hour: int = 20
+    rt_cache_ttl_hours: int = 24
+    rt_return_offset_days: int = 3
 
     secret_key: str = "change-me-in-production"
 
@@ -151,10 +178,26 @@ class EnvConfig(BaseSettings):
     discord_webhook_url: str = ""
 
     # Database
-    database_url: str = "sqlite:///./flight_deals.db"
+    # Default path lives under ./data so a volume-mounted directory
+    # (e.g. docker-compose ./data:/app/data) survives container recreation.
+    database_url: str = "sqlite:///./data/flight_deals.db"
+
+    # Registration / bootstrap
+    registration_disabled: bool = False
+    admin_email: str = ""
+    admin_password: str = ""
 
     # Logging
     log_level: str = "INFO"
+
+    # Session cookie security. Set SESSION_SECURE=true when the app is served
+    # behind HTTPS (e.g. a TLS reverse proxy). Local/plain-HTTP dev stays usable.
+    session_secure: bool = False
+
+    # Signing key for session cookies. MUST be set via .env (SECRET_KEY) in any
+    # real deployment — the AppConfig yaml default is a known constant and lets
+    # anyone forge a session. Preferred over the yaml value when provided.
+    secret_key: str = ""
 
     @field_validator("amadeus_env")
     @classmethod
@@ -180,6 +223,22 @@ class Config:
     def __init__(self, app_config_path: str = "config/app.yaml"):
         self.app = AppConfig.from_yaml(app_config_path)
         self.env = EnvConfig()
+
+        # An explicit SECRET_KEY in .env wins over the yaml default. Without it
+        # we keep the (insecure) yaml value but scream, because a default key
+        # means session cookies are forgeable.
+        if self.env.secret_key:
+            self.app.secret_key = self.env.secret_key
+
+        if self.app.secret_key == DEFAULT_SECRET_KEY:
+            logger.error(
+                "SECURITY: SECRET_KEY is the insecure default "
+                f"'{DEFAULT_SECRET_KEY}'. Set SECRET_KEY in your .env file or an "
+                "attacker can forge session cookies. Sessions are NOT safe until "
+                "this is changed."
+            )
+        elif self.env.secret_key:
+            logger.info("SECRET_KEY loaded from environment (.env).")
 
 
 # Global config instance

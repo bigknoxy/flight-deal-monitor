@@ -18,8 +18,10 @@ class TestDatabaseInitClose:
 
             await init_db()
 
-            mock_engine.begin.assert_called_once()
-            mock_conn.run_sync.assert_called_once()
+            # create_all + ensure_schema (schema-migration guard) each open a
+            # transaction and run_sync once.
+            assert mock_engine.begin.call_count == 2
+            assert mock_conn.run_sync.call_count == 2
 
     @pytest.mark.asyncio
     async def test_close_db_disposes_engine(self):
