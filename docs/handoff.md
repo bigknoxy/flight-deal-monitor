@@ -4,25 +4,32 @@
 > whenever a significant change is made or a panel decision is recorded.**
 
 ## Last Updated
-2026-07-13 (all 3 panel recommendations implemented + verified)
+2026-07-13 (all work committed in 8 atomic commits, tests green, ruff clean)
 
 ## Current Status
 
 | Area | Status |
 |---|---|
-| Tests | 270+ passing, 0 failed (green), 1 skipped |
+| Tests | 384 passing, 0 failed, 7 skipped (green) |
 | Lint | `ruff check app/ tests/` clean (exit 0) |
 | CI | Green on main (lint → test → Docker build) |
-| Open PRs | None — **54 files modified, NOT committed yet** |
+| Open PRs | None |
 | Open Issues | None |
 | AGENTS.md | Updated (this session) |
 | Panel system | Validated — full audit complete (7.5/10 score) |
-| Dev server | Live on `:8787` (uvicorn + `/dev/shm` SQLite) |
-| Git state | 54 files modified/untracked, last commit `479ddd0` |
+| Git state | Clean working tree, 8 atomic commits on main |
 
-> ⚠️ **NOTHING IS COMMITTED.** All work is in the working tree.
-> All 3 panel recommendations are implemented and verified but uncommitted.
-> Next agent should review the diff and commit (or ask user about commit strategy).
+### Commit log (this session)
+| # | Hash | Summary |
+|---|---|---|
+| 1 | `272c26f` | feat: round-trip pricing — trip_type discriminator + RT Google Flights enrichment |
+| 2 | `70d6b1b` | feat: reliability sprint — fli subprocess isolation, fail-fast secrets, circuit breaker, rate limiter |
+| 3 | `d90d7c7` | refactor: Rec 3 — extract scheduler_jobs.py God Module into focused modules |
+| 4 | `a97aad0` | feat: Rec 2 — learned per-route-month baselines via PriceObservation percentiles |
+| 5 | `323c58d` | feat: Rec 1 — @FlightDealBot interactive Telegram bot |
+| 6 | `3bafa71` | fix: fli test rewrite for subprocess isolation + UI/dashboard updates |
+| 7 | `be12196` | docs: handoff, panel decisions, MEMORY, lessons, plan, scripts, AGENTS.md |
+| 8 | `1965988` | chore: gitignore .env.bak and .opencode/ agent tooling |
 
 ### Completed this sprint
 - **Rec 3: Architecture extraction — DONE + VERIFIED**
@@ -61,15 +68,18 @@
     never blocks boot)
   - `app/database.py` migration guard includes `TelegramSubscription`
 
-### Verification
-- Full test suite: 270+ passing, 0 failed, 1 skipped (green)
-  - Scheduler/sweep/long-weekend: 38 tests pass
-  - Main: 15 tests pass (run directly, not via lean-ctx wrapper — hangs)
-  - Price-analysis/dedup/config/round-trip/email/webhook: 153 tests pass
-  - Alert/database/ensure-schema: pass
+### Verification (post-commit)
+- Full test suite: **384 passed, 0 failed, 7 skipped** (run in 6 batches)
+  - Batch A (83): fli_client, price_analysis + extended, round_trip, dedup, database, ensure_schema
+  - Batch B (38): scheduler_jobs + extended, sweeps, long_weekend
+  - Batch C1 (71): alert, api_clients, auth, cache, config
+  - Batch C2 (123): dashboard, database_url, email_notifier, webhook_notifiers, searchapi
+  - Batch D (54+7 skipped): alembic, flexible_dates, fli_integration, lifespan, price_history, scheduler
+  - Batch E (15): test_main
 - `ruff check app/ tests/` — clean (exit 0)
-- Test command: `DATABASE_URL=sqlite:////dev/shm/test hand.db PYTHONPATH=. python3 -m pytest tests/ -q`
-  (use `scripts/run_pytest.py` for allowlist-safe execution)
+- Test command: `DATABASE_URL=sqlite:////dev/shm/test.db PYTHONPATH=. python3 -m pytest tests/ -q`
+  - **Note**: Running the full suite at once hangs (likely some test cleanup / asyncio loop issue).
+    Run in batches: `timeout 60 python3 -m pytest <files> -q`. Individual test_main.py needs `timeout 45` prefix.
 
 ### Blocked / Deferred (post-sprint backlog)
 These items from the latest panel re-review are NOT yet started:
@@ -107,7 +117,7 @@ Overall score improved from **7/10 → 7.5/10**.
 
 ## What a New Agent Needs to Know
 
-**⚠️ FIRST: Decide commit strategy.** 54 files are modified/untracked but nothing is committed. Last commit is `479ddd0`. The next agent should either commit the work (ask user) or continue building on top of the uncommitted changes.
+**All work is committed.** Working tree is clean. 8 atomic commits on main this session.
 
 **Architecture**: FastAPI + APScheduler + SQLModel. Sync `fli` wrapper runs in
 `run_in_executor()`. Fallback chain: fli → SearchAPI → Duffel. Auth via
@@ -157,9 +167,8 @@ All decisions land in `docs/panel-decisions.md`. This file is updated every sess
 ## Next Recommended Action
 
 **Immediate (highest leverage)**:
-1. **Commit the work** — 54 files modified, nothing committed. Decide commit strategy (atomic commits per rec? one big commit?) and ship.
-2. **Panel re-review** — trigger panel to score the impact of all 3 implemented recommendations (Rec 1, 2, 3).
-3. **Next feature wave** — pick from deferred backlog above (seasonal features, circuit breaker visibility, Makefile, etc.)
+1. **Panel re-review** — trigger panel to score the impact of all 3 implemented recommendations (Rec 1, 2, 3). All work is now committed.
+2. **Next feature wave** — pick from deferred backlog above (seasonal features, circuit breaker visibility, Makefile, etc.)
 
 ## Live now (2026-07-13)
 
