@@ -129,7 +129,14 @@
                 <tr>
                     <td><strong>{{ job.name }}</strong></td>
                     <td style="color: var(--text-muted); font-family: monospace; font-size: 0.8rem;">{{ job.id }}</td>
-                    <td>{{ job.next_run or 'N/A' }}</td>
+                    <td>
+                        {% if job.next_run_display %}
+                            {{ job.next_run_display }}
+                            <span class="muted" style="font-size: 0.7rem;">({{ job.next_run[:19] }})</span>
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

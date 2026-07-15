@@ -19,16 +19,30 @@ COMMANDS = {
     "/routes": "Show monitored routes",
     "/subscribe": "Subscribe to a route: /subscribe ORIGIN DEST",
     "/unsubscribe": "Unsubscribe from all alerts",
+    "/unsubscribe-route": "Unsubscribe from one route: /unsubscribe-route ORIGIN DEST",
     "/help": "Show this help",
 }
 
 
 def _escape_md(text: str) -> str:
-    """Escape special characters for Telegram MarkdownV2."""
+    """Escape special characters for Telegram MarkdownV2.
+
+    Escapes only the characters that Telegram treats as special.
+    Callers should escape dynamic values BEFORE building Markdown formatting.
+    """
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     for char in escape_chars:
         text = text.replace(char, f"\\{char}")
     return text
+
+
+def _escape_md_value(text: str) -> str:
+    """Escape a dynamic value for safe inclusion in MarkdownV2 messages.
+
+    Use this for user-provided or dynamic values (prices, airports, URLs)
+    that will NOT be formatted with bold/italic/link syntax.
+    """
+    return _escape_md(text)
 
 
 class BotHandler:
@@ -104,6 +118,8 @@ class BotHandler:
             await self._cmd_subscribe(chat_id, parts[1].upper(), parts[2].upper())
         elif command == "/unsubscribe":
             await self._cmd_unsubscribe(chat_id)
+        elif command == "/unsubscribe-route" and len(parts) >= 3:
+            await self._cmd_unsubscribe_route(chat_id, parts[1].upper(), parts[2].upper())
         else:
             await self._cmd_help(chat_id)
 
@@ -133,15 +149,15 @@ class BotHandler:
             )
             existing = result.scalar_one_or_none()
             if existing:
-                msg = "You are already registered for deal alerts\\!"
+                msg = "You are already registered for deal alerts!"
             else:
                 sub = TelegramSubscription(chat_id=chat_id)
                 session.add(sub)
                 await session.commit()
                 msg = (
-                    "Welcome to Flight Deal Monitor\\!\n\n"
-                    "You are now registered for deal alerts\\. "
-                    "Use /help to see available commands\\."
+                    "Welcome to Flight Deal Monitor!\n\n"
+                    "You are now registered for deal alerts. "
+                    "Use /help to see available commands."
                 )
         await self._send_message(chat_id, msg)
 
@@ -155,7 +171,7 @@ class BotHandler:
             )
             deals = result.scalars().all()
         if not deals:
-            await self._send_message(chat_id, "No recent deals found\\.")
+            await self._send_message(chat_id, "No recent deals found.")
             return
         lines = ["*Latest Deals*"]
         for d in deals:
@@ -186,8 +202,8 @@ class BotHandler:
             session.add(sub)
             await session.commit()
         msg = (
-            f"Subscribed to {_escape_md(origin)}→{_escape_md(destination)} alerts\\. "
-            "You will receive deals for this route\\."
+            f"Subscribed to {_escape_md(origin)}→{_escape_md(destination)} alerts. "
+            "You will receive deals for this route."
         )
         await self._send_message(chat_id, msg)
 
@@ -204,7 +220,30 @@ class BotHandler:
             for sub in subs:
                 sub.is_active = False
             await session.commit()
-        await self._send_message(chat_id, "You have been unsubscribed from all alerts\\.")
+        await self._send_message(chat_id, "You have been unsubscribed from all alerts.")
+
+    async def _cmd_unsubscribe_route(
+        self, chat_id: str, origin: str, destination: str
+    ) -> None:
+        """Deactivate subscription for a specific route only."""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(TelegramSubscription).where(
+                    TelegramSubscription.chat_id == chat_id,
+                    TelegramSubscription.is_active.is_(True),
+                    TelegramSubscription.origin == origin,
+                    TelegramSubscription.destination == destination,
+                )
+            )
+            subs = result.scalars().all()
+            if subs:
+                for sub in subs:
+                    sub.is_active = False
+                await session.commit()
+                msg = f"Unsubscribed from {origin}→{destination} alerts."
+            else:
+                msg = f"You are not subscribed to {origin}→{destination} alerts."
+        await self._send_message(chat_id, msg)
 
     async def _cmd_help(self, chat_id: str) -> None:
         """Show available commands."""
@@ -257,24 +296,41 @@ class BotHandler:
             return None
 
     def _format_alert_message(self, flight_deal: FlightDeal) -> str:
-        """Format flight deal alert message."""
+        """Format flight deal alert message with MarkdownV2 escaping.
+
+        Escapes only dynamic values (prices, airports, dates, URLs) BEFORE
+        building Markdown formatting, so *bold* and [links](url) work correctly.
+        """
         deal_emoji = "🚨" if flight_deal.deal_type == "mistake_fare" else "🔥"
+
+        # Escape dynamic values that need escaping
+        origin = _escape_md(flight_deal.origin)
+        destination = _escape_md(flight_deal.destination)
+        airline = _escape_md(flight_deal.airline)
+        flight_numbers = _escape_md(flight_deal.flight_numbers)
+        departure_date = _escape_md(flight_deal.departure_date)
+        original_price = _escape_md(f"{flight_deal.original_price_usd:.2f}")
+        current_price = _escape_md(f"{flight_deal.current_price_usd:.2f}")
+        price_drop = _escape_md(f"{flight_deal.price_drop_percent:.1f}")
+        booking_url = _escape_md(flight_deal.booking_url)
+
         message = f"""{deal_emoji} *Flight Deal Alert*
 
 *{flight_deal.deal_type.replace('_', ' ').title()}*
 
-📍 {flight_deal.origin} → {flight_deal.destination}
-📅 {flight_deal.departure_date}
-✈️ {flight_deal.airline}
-🎫 {flight_deal.flight_numbers}
+📍 {origin} → {destination}
+📅 {departure_date}
+✈️ {airline}
+🎫 {flight_numbers}
 
-💰 ${flight_deal.original_price_usd:.2f} → ${flight_deal.current_price_usd:.2f}
-📉 {flight_deal.price_drop_percent:.1f}% OFF
+💰 ${original_price} → ${current_price}
+📉 {price_drop}% OFF
 
-[Book Now]({flight_deal.booking_url})
+[Book Now]({booking_url})
 
 _Deal expires in 24 hours or when inventory runs out_"""
-        return _escape_md(message)
+
+        return message
 
 
 # Global bot handler instance

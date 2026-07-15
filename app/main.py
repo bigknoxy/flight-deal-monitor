@@ -30,6 +30,7 @@ from app.scheduler import (
     shutdown_scheduler,
     start_scheduler,
 )
+from app.utils.circuit_breaker import circuit_breaker
 from app.utils.price_analysis import get_price_history
 
 # Configure logging
@@ -141,6 +142,7 @@ class HealthResponse(BaseModel):
     scheduler_running: bool
     jobs: list
     job_count: int
+    circuit_breakers: dict
 
 
 @app.get("/")
@@ -187,6 +189,7 @@ async def health() -> HealthResponse:
             scheduler_running=scheduler_status["running"],
             jobs=scheduler_status["jobs"],
             job_count=scheduler_status["job_count"],
+            circuit_breakers=circuit_breaker.get_all_states(),
         ).model_dump(),
     )
 

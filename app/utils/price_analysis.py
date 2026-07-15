@@ -122,6 +122,8 @@ async def record_price_observations(
             obs.days_until_departure = days_until
             obs.departure_month = dep_dt.month
             obs.departure_day_of_week = dep_dt.weekday()
+            obs.observed_at_month = now.month
+            obs.observed_at_day_of_week = now.weekday()
             if days_until <= 7:
                 obs.booking_window_bucket = "0-7d"
             elif days_until <= 21:

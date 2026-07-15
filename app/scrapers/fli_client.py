@@ -117,13 +117,22 @@ def _run_fli_search(
 
 def _to_dict(result: Any) -> dict:
     """Convert FlightResult to dictionary matching SearchAPI format."""
-    leg = result.legs[0] if result.legs else None
+    # Build segments from all legs to support stopover detection
+    segments = []
+    legs = result.legs if result.legs else []
+    for leg in legs:
+        seg = {"flight": {"number": leg.flight_number}}
+        if hasattr(leg, "arrival_airport"):
+            seg["arrival_airport"] = leg.arrival_airport
+        segments.append(seg)
 
-    segment = {"flight": {"number": leg.flight_number} if leg else {}}
+    # Fallback to single segment if no legs
+    if not segments:
+        segments = [{"flight": {}}]
 
     return {
         "validatingAirlineCodes": [result.primary_airline_name],
-        "itineraries": [{"segments": [segment]}],
+        "itineraries": [{"segments": segments}],
         "price": {"total": f"{result.price:.2f}"},
         "type": "One way",
         "total_duration": result.duration,

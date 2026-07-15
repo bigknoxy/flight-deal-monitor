@@ -60,19 +60,54 @@ def shutdown_scheduler() -> None:
 
 def get_scheduler_status() -> dict:
     """Get scheduler status for health endpoint."""
-    return {
-        "running": scheduler.running,
-        "jobs": [
+    from datetime import datetime
+
+    def _format(ts: datetime) -> str:
+        # Stored as UTC by APScheduler; render in local time for human reading.
+        try:
+            from zoneinfo import ZoneInfo
+
+            local = ts.astimezone(ZoneInfo("America/Chicago"))
+        except Exception:
+            local = ts
+        return local.strftime("%Y-%m-%d %H:%M")
+
+    jobs = []
+    for job in scheduler.get_jobs():
+        ts = job.next_run_time
+        if ts is None:
+            iso = None
+            display = None
+        else:
+            if isinstance(ts, str):
+                try:
+                    ts = datetime.fromisoformat(ts)
+                except ValueError:
+                    iso = None
+                    display = None
+                    jobs.append(
+                        {
+                            "id": job.id,
+                            "name": job.name,
+                            "next_run": None,
+                            "next_run_display": None,
+                        }
+                    )
+                    continue
+            iso = ts.isoformat()
+            display = _format(ts)
+        jobs.append(
             {
                 "id": job.id,
                 "name": job.name,
-                "next_run": job.next_run_time.isoformat()
-                if job.next_run_time
-                else None,
+                "next_run": iso,
+                "next_run_display": display,
             }
-            for job in scheduler.get_jobs()
-        ],
-        "job_count": len(scheduler.get_jobs()),
+        )
+    return {
+        "running": scheduler.running,
+        "jobs": jobs,
+        "job_count": len(jobs),
     }
 
 

@@ -34,6 +34,10 @@ async def mark_flight_seen(
     await session.commit()
 
 
+# Max alert attempts before marking permanently failed (stops infinite retries)
+MAX_ALERT_ATTEMPTS = 5
+
+
 async def is_flight_seen_recently(
     session: AsyncSession,
     route_id: str,
@@ -45,6 +49,9 @@ async def is_flight_seen_recently(
     successfully delivered. If the last alert failed (or no alert
     has been sent yet), the deal is re-eligible for the next sweep
     so transient delivery failures don't permanently suppress it.
+
+    If a deal has failed MAX_ALERT_ATTEMPTS times without success,
+    it is marked permanently failed and will not be retried.
     """
     cutoff = datetime.utcnow() - timedelta(hours=hours)
 
@@ -61,21 +68,33 @@ async def is_flight_seen_recently(
     if deal is None:
         return False
 
-    # Check the most recent AlertHistory for this deal. If the last
-    # alert was not successfully delivered, allow a retry.
+    # Check all AlertHistory rows for this deal to count failures.
     alert_query = (
         select(AlertHistory)
         .where(AlertHistory.flight_deal_id == deal.id)
         .order_by(AlertHistory.sent_at.desc())
-        .limit(1)
     )
     alert_result = await session.execute(alert_query)
-    last_alert = alert_result.scalar_one_or_none()
+    alerts = alert_result.scalars().all()
 
-    if last_alert is None:
+    if not alerts:
         # No alert has been sent yet — retry.
         return False
-    if last_alert.status != "sent":
+
+    # Count failed attempts. If all alerts failed and we've hit the threshold,
+    # mark as permanently failed to stop retry storms.
+    failed_count = sum(1 for a in alerts if a.status != "sent")
+    if failed_count >= MAX_ALERT_ATTEMPTS:
+        logger.info(
+            f"Deal {deal.id} has {failed_count} failed alert attempts; "
+            "marking permanently failed, will not retry"
+        )
+        deal.expired_at = datetime.utcnow()
+        session.add(deal)
+        await session.commit()
+        return True
+
+    if all(a.status != "sent" for a in alerts):
         # Last alert failed or was rate-limited — retry.
         return False
     return True

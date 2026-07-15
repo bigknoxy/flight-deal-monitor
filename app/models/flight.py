@@ -108,3 +108,11 @@ class PriceObservation(SQLModel, table=True):
         default=None,
         description="0-7d, 8-21d, 22-60d, 61+d",
     )
+    observed_at_month: int | None = Field(
+        default=None,
+        description="Month of observed_at (1-12) — search seasonality",
+    )
+    observed_at_day_of_week: int | None = Field(
+        default=None,
+        description="Day of week of observed_at (0=Mon .. 6=Sun)",
+    )

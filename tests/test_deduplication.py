@@ -79,11 +79,11 @@ async def test_is_flight_seen_recently_true():
         mock_deal_result = MagicMock()
         mock_deal_result.scalar_one_or_none.return_value = deal
 
+        # Mock scalars().all() for the alert query (new API)
         mock_alert_result = MagicMock()
-        mock_alert_result.scalar_one_or_none.return_value = AlertHistory(
-            flight_deal_id=1,
-            status="sent",
-        )
+        mock_alert_result.scalars.return_value.all.return_value = [
+            AlertHistory(flight_deal_id=1, status="sent")
+        ]
 
         mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
 
@@ -137,10 +137,9 @@ async def test_is_flight_seen_recently_retries_on_failed_alert():
         mock_deal_result.scalar_one_or_none.return_value = deal
 
         mock_alert_result = MagicMock()
-        mock_alert_result.scalar_one_or_none.return_value = AlertHistory(
-            flight_deal_id=1,
-            status="failed",
-        )
+        mock_alert_result.scalars.return_value.all.return_value = [
+            AlertHistory(flight_deal_id=1, status="failed")
+        ]
 
         mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
 
@@ -177,10 +176,9 @@ async def test_is_flight_seen_recently_retries_on_rate_limited_alert():
         mock_deal_result.scalar_one_or_none.return_value = deal
 
         mock_alert_result = MagicMock()
-        mock_alert_result.scalar_one_or_none.return_value = AlertHistory(
-            flight_deal_id=1,
-            status="rate_limited",
-        )
+        mock_alert_result.scalars.return_value.all.return_value = [
+            AlertHistory(flight_deal_id=1, status="rate_limited")
+        ]
 
         mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
 
@@ -217,7 +215,7 @@ async def test_is_flight_seen_recently_no_alert_history_retries():
         mock_deal_result.scalar_one_or_none.return_value = deal
 
         mock_alert_result = MagicMock()
-        mock_alert_result.scalar_one_or_none.return_value = None
+        mock_alert_result.scalars.return_value.all.return_value = []
 
         mock_session.execute.side_effect = [mock_deal_result, mock_alert_result]
 

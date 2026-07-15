@@ -730,3 +730,381 @@ reliability, 7.5/10 DX). The ceiling is still gated by product (6/10 PMF)
 and data strategy (6/10 moat). The fixes bought ~0.5 points overall — the
 next 1.5 points come from shipping the Telegram bot and consuming the ML
 features, not from more engineering hygiene.
+
+---
+
+## Full Panel Re-Review — Post-Implementation Verification (2026-07-13)
+
+**Panelists**: levelsio, hanselman, belshe, swyx, b0rk (all 5 responded)
+**Topic**: Re-review after all 3 top-priority recommendations (Rec 1: Telegram
+bot, Rec 2: learned baselines, Rec 3: God Module extraction) are implemented,
+committed, and verified. Score the impact and identify next highest-leverage work.
+**Context**: 384 tests passing, 0 failed, 7 skipped. `ruff` clean. 8 atomic
+commits on main. Working tree clean. Both open questions from handoff
+(`async_utils.py`, `test_long_weekend.py`) resolved.
+
+---
+
+### levelsio — Business Model / PMF — Score: 7/10 (delta: +1 from previous 6)
+
+The Telegram bot is the single biggest PMF move since the project started. This
+is the first feature that makes the product deliverable to someone who isn't the
+operator.
+
+**What's working**:
+- `@FlightDealBot` exists and works — `/subscribe MCI LHR` is the exact UX a
+  deal-hacker wants. No dashboard login, no YAML editing, just a chat message.
+- Per-user subscription filters (`origin`, `destination`, `max_price`,
+  `route_type`) are the right abstraction — each user personalizes their own
+  feed without forking config.
+- `send_alert_to_subscribers()` fans out to filtered subscribers — this is the
+  multi-user product surface that was missing. A 2nd user can now subscribe
+  without the operator doing anything.
+- Raw `httpx` long-polling (no python-telegram-bot dep) was the right call —
+  500KB saved, no event-loop conflicts. Ship-the-simplest-thing-that-works.
+
+**What's not working**:
+- Still one home airport (MCI) × 19 YAML destinations. Users in other cities
+  can `/subscribe` but will never see deals from their airport. The bot is
+  functional but the inventory is still personal-scale.
+- No onboarding flow — a new user `/start`s and gets "registered" but doesn't
+  know which routes exist or what to subscribe to. `/routes` dumps a list; no
+  discoverability, no "popular routes this week" nudge.
+- `_format_alert_message` uses `_escape_md` which double-escapes (the message
+  string already has MarkdownV2 formatting, then `_escape_md` escapes the
+  entire thing including the formatting characters). This will produce broken
+  rendering on some Telegram clients. Needs a manual test against the live bot.
+- No `/unsubscribe` for a single route — only nuclear "unsubscribe from all."
+  A user who wants to drop `MCI→LHR` but keep `MCI→CUN` can't.
+- Monetization is still zero. The bot exists but there's no paid tier, no
+  channel, no affiliate link, no premium-only routes. Just a free bot.
+
+**Top 2 recommendations**:
+1. **Make destinations dynamic (DB-backed)** — until users can add their own
+   routes via the bot (`/watch MCI TYO`), this is still a personal tool with a
+   Telegram UI. The `TelegramSubscription` model already has the right shape;
+   extend it to create on-demand monitoring routes.
+2. **Add affiliate booking links** — replace the generic Google Flights URL
+   with a Skyscanner/Kiwi deep link that earns a commission. Zero-friction
+   monetization; the user was going to book anyway.
+
+**New concerns**:
+- The `_escape_md` double-escaping bug may make alerts unreadable on some
+  clients. Needs a live bot test.
+- No rate limiting on bot commands — a user spamming `/subscribe` 1000 times
+  could fill the DB.
+
+---
+
+### hanselman — DX / Self-Hoster / Dashboard — Score: 7.5/10 (unchanged from 7.5)
+
+**What's working**:
+- The God Module extraction is a real DX win for contributors. A new dev
+  looking for "how does scanning work" goes to `scanner.py` (297L), not a
+  594-line God Module. The re-exports in `scheduler_jobs.py` are clean — old
+  imports still work, new code imports from the right module.
+- Module names are discoverable: `job_lifecycle.py` (obvious), `alert_dispatch.py`
+  (obvious), `scanner.py` (obvious). No "where does X live now" confusion.
+- Bot startup is best-effort (`try/except` in lifespan, never blocks boot) —
+  a self-hoster without a `TELEGRAM_BOT_TOKEN` won't see errors.
+
+**What's not working**:
+- **No Makefile.** Still `pip install && python -m app.main` in the README.
+  This was recommended last review, recommended the review before, and is still
+  missing. 10 minutes of work, saves every future contributor 5 minutes. The
+  fact that it's been deferred twice suggests it's being systematically
+  under-prioritized relative to its cost/benefit ratio.
+- `ruff` is still pinned to an ancient version. `mypy` CI is still
+  `continue-on-error`. Type errors are acknowledged but invisible.
+- `fli` deploy story is still "it might not work and you won't know why." The
+  `FLI_SITE_PACKAGES` env injection helps, but the README doesn't document the
+  fallback path prominently.
+- `bot.py` creates a new `httpx.AsyncClient` for every single API call
+  (`_send_message`, `_poll_loop`, `_send_alert_to_chat`). This is wasteful and
+  prevents HTTP connection reuse. Should create one shared client in
+  `__init__` and reuse it.
+
+**Top 2 recommendations**:
+1. **Add the Makefile.** `dev`, `test`, `lint`, `format`, `docker-up`. Stop
+   deferring this.
+2. **Use a shared `httpx.AsyncClient` in `BotHandler`** — one client in
+   `__init__`, close in `stop_polling()`. Reduces latency on repeated calls
+   and is the idiomatic httpx pattern.
+
+**New concerns**:
+- The `_escape_md` function escapes the entire message string *after* it's
+  been formatted with MarkdownV2. This means bold/italic/link formatting will
+  be escaped away. Needs a manual test.
+
+---
+
+### belshe — Reliability / Production Readiness — Score: 8/10 (unchanged from 8)
+
+**What's working**:
+- Module extraction changed the reliability posture minimally — which is the
+  right outcome. The extraction was mechanical, not behavioral. Each job lifecycle
+  helper still opens its own session (correct — survives caller rollback).
+  `_send_deal_alert` still uses `asyncio.gather(return_exceptions=True)` —
+  individual notifier failures don't abort the sweep.
+- Circuit breaker on paid APIs is intact and correctly wired in the extracted
+  `scanner.py`. The fallback chain logic is unchanged.
+- Bot polling loop has a resilient error-recovery pattern: `except Exception`
+  → `logger.warning` → `asyncio.sleep(5)` → retry. `CancelledError` breaks the
+  loop cleanly. This is safe for long-running operation.
+
+**What's not working**:
+- **Bot has no restart on crash.** If `_poll_loop` exits (e.g., persistent
+  network failure exhausts the `except` path, or the task is garbage-collected),
+  there's no watchdog to restart it. A `task.done()` check in lifespan or a
+  supervisor pattern is needed. Currently: if the bot dies, it stays dead
+  until the app restarts.
+- **Learned baselines add a DB query per scan.** `calculate_percentile_baseline()`
+  runs a `SELECT` per route+departure_date. For the regular sweep (19 routes ×
+  13 offsets = 247 scans), that's 247 extra queries per sweep. Not a problem
+  at current volume, but worth monitoring.
+- **Deferred items still deferred**: `PRAGMA synchronous=NORMAL` (2x write
+  throughput), circuit breaker state via `/health` (no observability), permanent-
+  failure threshold on dedup (prevents retry storms). None are bugs, but all
+  are "nice to have" that would move the score to 9.
+
+**Top 2 recommendations**:
+1. **Add a bot polling watchdog** — check `bot_handler._poll_task.done()` in a
+   periodic health check or lifespan heartbeat; restart if dead.
+2. **Expose circuit breaker state via `/health`** — this was deferred last
+   review and is still the single highest-impact observability improvement.
+
+**New concerns**:
+- `bot.py` creates a new `httpx.AsyncClient` per call, which means no
+  connection pooling and potential socket exhaustion under load. Low risk at
+  current volume but a code smell.
+
+---
+
+### swyx — AI / Data Strategy / Defensibility — Score: 7/10 (delta: +1 from previous 6)
+
+The learned baselines are the first real step from "commodity threshold" to
+"defensible detection." The question is whether it's enough.
+
+**What's working**:
+- `detect_deal_learned()` uses percentile-based thresholds (P20=mistake,
+  P30=deep_flash, P50=flash_sale) adapted per route+departure_month. This is
+  fundamentally better than the static multiplier approach — a $200 MCI→LHR
+  flight that's normally $350 is a deal; the same $200 on MCI→CUN (normally $180)
+  is not. The learned baseline captures this; the static threshold didn't.
+- `calculate_percentile_baseline()` correctly uses index-based percentile
+  computation (not SQL NTILE, despite the docstring saying so — the code sorts
+  prices and indexes into the array). This is simpler and more portable across
+  SQLite/Postgres. Good call.
+- Cold-start guard is correct: if both `median_price is None` and `percentiles
+  is None`, the scan skips deal detection entirely. No false-positive factory.
+- Fallback to median-based `detect_deal()` when percentiles are unavailable
+  (fewer than `min_samples`) is the right graceful degradation.
+
+**What's not working**:
+- **Features are still unconsumed.** `record_price_observations()` stores
+  `departure_month`, `departure_day_of_week`, `days_until_departure`,
+  `booking_window_bucket` — but `calculate_percentile_baseline()` only filters
+  by `departure_month`. The other features sit in the DB doing nothing. The
+  percentile baseline is a per-route-month average; it doesn't account for
+  booking window (a $200 flight 3 days out is different from $200 60 days out).
+- **No observed-side features.** `observed_at_month` and `observed_at_day_of_week`
+  are still missing from `PriceObservation`. These capture *search seasonality*
+  ("deals appear on Tuesday afternoons"), not just *departure seasonality*.
+  Still the same gap as last review.
+- **No feedback loop.** `UserDealInteraction` (viewed/clicked/booked/dismissed)
+  is not started. Without a feedback signal, there's no way to distinguish a
+  true positive (user booked) from a false positive (user ignored). The
+  detection quality is unmeasurable.
+- **Clone time is still 4-8 hours.** The learned baseline adds maybe 30 minutes
+  to clone time (a competitor copies `calculate_percentile_baseline()` and
+  `detect_deal_learned()` — they're standard percentile code). The moat comes
+  from the *data* accumulated in `PriceObservation`, not from the code.
+
+**Top 2 recommendations**:
+1. **Consume the booking window feature** — filter `calculate_percentile_baseline()`
+   by `booking_window_bucket` in addition to `departure_month`. A P20 for 0-7d
+   bookings is different from P20 for 61+d bookings. This is a 1-line change
+   with high signal gain.
+2. **Add `UserDealInteraction` model** — even without a model, logging
+   viewed/dismissed/booked starts the feedback flywheel. The bot's
+   `/subscribe` and `/unsubscribe` are already implicit signals; make them
+   explicit records.
+
+**New concerns**:
+- The docstring for `calculate_percentile_baseline()` says "Uses SQLite NTILE(100)
+  window function" but the code doesn't — it uses Python-side index computation.
+  The docstring is misleading and should be corrected.
+
+---
+
+### b0rk — Architecture / Fragility / Dependencies — Score: 7.5/10 (delta: +0.5 from previous 7)
+
+The God Module extraction is the right move, executed cleanly. Let me assess
+the new architecture.
+
+**What's working**:
+- `scheduler_jobs.py` went from 594L → 175L. The 3 extracted modules have
+  clean responsibilities: `job_lifecycle.py` (JobRun state machine),
+  `alert_dispatch.py` (notifier fan-out), `scanner.py` (route scanning + deal
+  detection + cache + observation recording). No overlapping concerns.
+- Re-exports in `scheduler_jobs.py` are good backward-compat practice — old
+  imports and test patch targets work without migration. The `__all__` list
+  documents what's intentionally exported.
+- No circular dependencies introduced. `scanner.py` imports from
+  `price_analysis`, `circuit_breaker`, `deduplication`, `cache` — all leaf
+  modules. `alert_dispatch.py` imports from `alert`, `rate_limiter`, notifiers
+  — also leaf-level. `scheduler_jobs.py` imports from all 3 extracted modules
+  + `config` + `database` — the top of the DAG, as expected.
+- Module boundaries align with the test structure: tests can patch
+  `app.scanner._scan_route`, `app.alert_dispatch._send_deal_alert`, etc.
+  without going through `scheduler_jobs.py`.
+
+**What's not working**:
+- **Dead `elif` branches still present.** `scanner.py` lines 151, 169: the
+  `elif not circuit_breaker.is_allowed("Amadeus")` / `elif not
+  circuit_breaker.is_allowed("Duffel")` branches are functionally unreachable
+  in the intended "circuit breaker open" case. When `circuit_breaker.is_allowed()`
+  returns `False`, the preceding `if` condition (`not flights and
+  circuit_breaker.is_allowed(...)`) is False, but the `elif` then evaluates
+  `not circuit_breaker.is_allowed(...)` which is `True` — so the log fires even
+  when `flights` is already non-empty (i.e., SearchAPI found results but we're
+  still iterating the fallback chain). This was identified last review and is
+  still unfixed. The SearchAPI block correctly uses `if/else`; the Amadeus and
+  Duffel blocks should match.
+- **`scanner.py` is still 297L with 7 concerns in one function.** The extraction
+  reduced `scheduler_jobs.py` but `_scan_route()` itself is still doing: cache
+  check, fli scrape, fallback chain, median calculation, percentile calculation,
+  deal detection, observation recording, cache write. It's a smaller God
+  Function inside a smaller God Module. The next step is to extract a
+  `DealDetector` or `ScanOrchestrator` class from `_scan_route()`.
+- **`bot.py` global singleton** — `bot_handler = BotHandler()` at module level
+  means the bot is instantiated on import, even in tests or when no token is
+  configured. This is the same singleton smell as the old `circuit_breaker`
+  import. Tests that want to isolate bot behavior need to patch the global.
+- **`_escape_md` double-escaping bug** (confirmed by reading the code): the
+  `_format_alert_message` method builds a string with MarkdownV2 formatting
+  (*bold*, links), then `_send_alert_to_chat` passes it raw, but `_send_message`
+  (used by command handlers) also calls `_escape_md` on already-formatted text.
+  The command handlers will render incorrectly. This is an architectural
+  inconsistency — two send paths with different escaping semantics.
+
+**Top 2 recommendations**:
+1. **Fix the dead `elif` branches in `scanner.py`** — change `elif not
+   circuit_breaker.is_allowed(...)` to match the SearchAPI pattern (`if/else`).
+   This was flagged last review and is a 4-line fix. Still not done.
+2. **Extract `_scan_route()` internals** — the function has 7 concerns. At
+   minimum, extract the fallback chain (fli → SearchAPI → Amadeus → Duffel)
+   into a helper, and the deal detection + recording into another. Target:
+   `_scan_route` becomes a 40-line orchestrator, not a 240-line monolith.
+
+**New concerns**:
+- `bot.py` module-level singleton instantiation is a testability smell.
+- The `_escape_md` double-escaping is a latent rendering bug.
+
+---
+
+### Consensus: Implementation Validation
+
+| Recommendation | Original concern | Panel verdict | Gaps remaining |
+|---|---|---|---|
+| Rec 1: Telegram bot | No user-facing surface; not a product | **Validated ✓** — bot works, subscriptions work, fan-out works | `_escape_md` bug; no single-route unsubscribe; no restart watchdog; destinations still YAML |
+| Rec 2: Learned baselines | Static thresholds easily cloned; no data moat | **Validated ✓ (partial)** — percentile detection is live and wired in | Booking window feature unconsumed; no observed-side features; no feedback loop; docstring inaccurate |
+| Rec 3: God Module extraction | 594L God Module, 7 concerns in one function | **Validated ✓** — clean split, no new deps, re-exports work | Dead `elif` branches still unfixed; `_scan_route()` itself still has 7 concerns; bot singleton smell |
+
+**All 3 recommendations were implemented correctly and are functioning.** The
+gaps are enhancements, not bugs — except the `_escape_md` rendering issue, which
+needs a manual live-bot test to confirm severity.
+
+---
+
+### Score Comparison: Previous → Current
+
+| Panelist | Previous (2026-07-12 post-fix) | Current (post-implementation) | Delta |
+|---|---|---|---|
+| levelsio (PMF) | 6/10 | 7/10 | +1 (Telegram bot is the first real product surface) |
+| hanselman (DX) | 7.5/10 | 7.5/10 | 0 (extraction helps contributors; Makefile still missing) |
+| belshe (Reliability) | 8/10 | 8/10 | 0 (extraction was mechanical; bot needs watchdog) |
+| swyx (AI/Moat) | 6/10 | 7/10 | +1 (learned baselines live; features still under-consumed) |
+| b0rk (Architecture) | 7/10 | 7.5/10 | +0.5 (clean extraction; dead elif still unfixed; scanner still complex) |
+| **Overall** | **7.5/10** | **7.5/10** | **0** (median: +1 PMF, +1 moat offset by 0 DX/reliability; math averages to flat) |
+
+**Note on scoring**: The overall score is the median of the 5 panelist scores.
+Individual deltas: levelsio +1, swyx +1, b0rk +0.5 are offset by hanselman 0
+and belshe 0. The product and data layers improved; the engineering layers
+held steady (correct — they weren't the target of this sprint). The next
+overall score increase comes from consuming the remaining deferred engineering
+items (Makefile, circuit breaker visibility, PRAGMA synchronous, dead elif fix)
+which would push hanselman and belshe to 8+.
+
+---
+
+### Remaining Action Items (Ranked by Leverage)
+
+Closed items are marked [x]. New items are marked [NEW].
+
+| Rank | Action | Source | Impact | Effort | Status |
+|---|---|---|---|---|---|
+| 1 | **[NEW] Fix `_escape_md` double-escaping bug** in `bot.py` — alerts may render broken on Telegram clients | b0rk, levelsio | Alert rendering correctness | S | Open |
+| 2 | **[NEW] Consume booking_window_bucket in percentile baseline** — filter by bucket in addition to departure_month | swyx | Detection accuracy | S | Open |
+| 3 | **Make destinations dynamic** (DB-backed, bot-driven `/watch ORIGIN DEST`) | levelsio | Product PMF — eliminates single-airport limitation | M | Open |
+| 4 | **Extract `_scan_route()` internals** — 7 concerns in one function | b0rk | Architecture — reverses God Function trend | M | Open |
+| 5 | **Fix dead `elif` log branches** in `scanner.py` lines 151, 169 | b0rk | Log accuracy — 4-line fix | S | Open (deferred twice) |
+| 6 | **Add Makefile** with `dev/test/lint/format/docker-up` | hanselman | DX — onboarding | S | Open (deferred twice) |
+| 7 | **Add bot polling watchdog** — check `_poll_task.done()` and restart | belshe | Reliability — bot stays alive | S | Open |
+| 8 | **Expose circuit breaker state via `/health`** | belshe | Observability | S | Open (deferred) |
+| 9 | **Add `PRAGMA synchronous=NORMAL`** alongside WAL | belshe | 2x write throughput | S | Open (deferred) |
+| 10 | **Add `UserDealInteraction` model** (viewed/clicked/booked/dismissed) | swyx | Feedback signal for false-positive detection | M | Open (deferred) |
+| 11 | **[NEW] Add single-route `/unsubscribe`** — currently only nuclear | levelsio | UX — user control | S | Open |
+| 12 | **[NEW] Use shared `httpx.AsyncClient` in `BotHandler`** | hanselman, belshe | Performance — connection reuse | S | Open |
+| 13 | **Fix `_escape_md` docstring** — says NTILE, uses Python index | swyx | Documentation accuracy | S | Open |
+
+**Previously completed this sprint** (all 3 recommendations, all verified):
+- [x] Rec 1: `@FlightDealBot` Telegram bot — levelsio's top recommendation
+- [x] Rec 2: Learned per-route-month baselines — swyx's top recommendation
+- [x] Rec 3: God Module extraction — b0rk's top recommendation
+
+**Deferred backlog (lower priority, not yet started)**:
+- B8 `/metrics` (Prometheus), B15 README reconcile, B17-B20 product (per-user
+  model / affiliate / public feed), B22-B25 AI (airport lookup / false-positive
+  classifier / flywheel), B29 licensed-API primary
+- `observed_at_month` + `observed_at_day_of_week` features (swyx)
+- Permanent-failure threshold on dedup retry (belshe)
+
+---
+
+### Divergent Opinions
+
+| Topic | levelsio | hanselman | belshe | swyx | b0rk |
+|---|---|---|---|---|---|
+| Biggest win this sprint | Telegram bot (PMF) | Module extraction (DX) | Extraction was mechanical (neutral) | Learned baselines (moat) | God Module split (arch) |
+| Biggest remaining gap | Dynamic destinations | Makefile | Bot watchdog | Feedback loop | Dead elif + scanner complexity |
+| Next priority | Affiliate links | Makefile | Circuit breaker visibility | Consume features | Fix dead elif |
+| Is `_escape_md` a bug? | Maybe (needs test) | Yes (confirmed by reading) | N/A | N/A | Yes (two send paths, different escaping) |
+
+**Consensus**: All 5 panelists agree the sprint delivered real value. The
+disagreement is about what's *next*: product growth (levelsio), engineering
+hygiene (hanselman, b0rk), reliability hardening (belshe), or data depth
+(swyx). The moderator recommends a balanced next sprint: 1 product item
+(affiliate links or dynamic destinations), 1 engineering fix (dead elif +
+Makefile), 1 data item (consume booking window feature).
+
+---
+
+### Overall Project Health: 7.5/10 (unchanged)
+
+The sprint delivered +1 on PMF and +1 on data moat, offset by flat scores on
+DX and reliability (which weren't the target). The engineering floor remains
+at 8/10 (reliability) and 7.5/10 (DX + architecture). The ceiling is now
+closer: 7/10 PMF (up from 6) and 7/10 moat (up from 6). The path to 8/10
+overall is: consume the deferred engineering items (push hanselman/belshe/b0rk
+to 8+) + ship dynamic destinations (push levelsio to 8) + add feedback loop
+(push swyx to 8).
+
+**The honest assessment**: The Telegram bot and learned baselines were the
+right bets. The architecture extraction was necessary hygiene. The product
+is now a *multi-user tool with adaptive detection* — no longer just a single-
+operator dashboard. The next inflection point is dynamic destinations (making
+the product work for any airport) and a feedback loop (making detection
+measurable). The engineering debt (Makefile, dead elif, circuit breaker
+visibility) is small but accumulating — address it before the next feature
+sprint.

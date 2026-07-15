@@ -53,5 +53,22 @@ class CircuitBreaker:
                 "open_until": self._open_until.get(provider_name),
             }
 
+    def get_all_states(self) -> dict:
+        """Get state for all tracked providers (for /health endpoint)."""
+        import time as _time
+        with self._lock:
+            result = {}
+            now = _time.monotonic()
+            for provider in set(self._failures) | set(self._open_until):
+                result[provider] = {
+                    "failures": self._failures.get(provider, 0),
+                    "open_until": self._open_until.get(provider),
+                    "open": bool(
+                        self._open_until.get(provider) and
+                        self._open_until[provider] > now
+                    ),
+                }
+            return result
+
 
 circuit_breaker = CircuitBreaker()

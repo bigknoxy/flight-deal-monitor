@@ -779,6 +779,10 @@ tr:hover td {
 }
 
 /* Auth Pages */
+body.auth-page .main-content {
+    margin-left: 0;
+}
+
 .auth-container {
   display: flex;
   align-items: center;

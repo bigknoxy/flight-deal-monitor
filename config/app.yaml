@@ -38,23 +38,19 @@ app:
   look_back_days: 30
   max_alerts_per_hour: 10
   max_results_per_route: 10
+  max_rt_lookups_per_hour: 20
   min_price_usd: 100
   mistake_sweep_interval: 900
   multi_city:
     enabled: false
     max_stops: 2
   regular_sweep_interval: 1800
+  round_trip_enrichment: true
   route_multipliers:
     domestic: 1.0
     europe: 0.85
     latin_america: 1.2
     transatlantic: 0.8
     transpacific: 0.7
-  # Tier-2 round-trip enrichment (off by default). When true, each confirmed
-  # one-way deal is enriched with ONE real round-trip lookup (SearchAPI ->
-  # Amadeus -> Duffel), cached 24h, on its own quota + 30s timeout. Without a
-  # paid provider key it falls back to a clearly-labeled derived estimate.
-  round_trip_enrichment: true
-  max_rt_lookups_per_hour: 20
   rt_cache_ttl_hours: 24
   rt_return_offset_days: 3

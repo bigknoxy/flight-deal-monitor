@@ -37,22 +37,52 @@ logger = logging.getLogger(__name__)
 FLI_TIMEOUT_SECONDS = 30
 
 
+def _extract_stopover_airports(flight: dict, destination: str) -> list[str]:
+    """Extract intermediate airports from flight segments.
+
+    Returns airport codes for stops between origin and destination.
+    Assumes segments are ordered as returned by the API.
+    """
+    segments = flight.get("itineraries", [{}])[0].get("segments", [])
+    if len(segments) <= 1:
+        return []
+
+    via_airports = []
+    for seg in segments:
+        arrival = seg.get("arrival_airport") or seg.get("flight", {}).get("arrival_airport", "")
+        if arrival and arrival not in via_airports:
+            via_airports.append(arrival)
+
+    # Remove the final destination if it's included
+    if via_airports and via_airports[-1] == destination:
+        via_airports = via_airports[:-1]
+
+    return via_airports
+
+
 def _build_google_flights_url(
     origin: str,
     destination: str,
     departure_date: str,
     return_date: str | None = None,
     airline: str = "",
+    via_airports: list[str] | None = None,
 ) -> str:
     """Build a Google Flights search URL.
 
     The link always opens a ROUND-TRIP search so the user can compare against
     Google Flights' round-trip number in one tap.  The price we display is
     one-way (fli only returns one-way fares).
+
+    Args:
+        via_airports: Optional list of stopover airport codes to include in URL.
     """
     q = f"Flights to {destination} from {origin} on {departure_date}"
     if return_date:
         q += f" return on {return_date}"
+    if via_airports:
+        for via in via_airports:
+            q += f" via {via}"
     return f"https://www.google.com/travel/flights?q={quote(q)}"
 
 
@@ -148,8 +178,6 @@ async def _scan_route(
             except Exception as e2:
                 logger.warning(f"Amadeus search failed: {e2}")
                 circuit_breaker.record_failure("Amadeus")
-        elif not circuit_breaker.is_allowed("Amadeus"):
-            logger.warning("Amadeus circuit breaker open, skipping")
 
         if not flights and circuit_breaker.is_allowed("Duffel"):
             try:
@@ -166,8 +194,6 @@ async def _scan_route(
             except Exception as e3:
                 logger.error(f"Duffel search also failed: {e3}")
                 circuit_breaker.record_failure("Duffel")
-        elif not circuit_breaker.is_allowed("Duffel"):
-            logger.warning("Duffel circuit breaker open, skipping")
 
         if not flights:
             return deals
@@ -201,8 +227,9 @@ async def _scan_route(
                 ]
             )
             price = float(flight.get("price", {}).get("total", 0))
+            via_airports = _extract_stopover_airports(flight, destination)
             booking_url = _build_google_flights_url(
-                origin, destination, departure_date, return_date, airline
+                origin, destination, departure_date, return_date, airline, via_airports
             )
 
             if price < config.app.min_price_usd:

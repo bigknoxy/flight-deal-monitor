@@ -11,7 +11,7 @@ from app.job_lifecycle import (
     _start_job_run,
 )
 from app.models.job import JobRun
-from app.scanner import _build_google_flights_url, _scan_route
+from app.scanner import _build_google_flights_url, _extract_stopover_airports, _scan_route
 
 
 class TestJobRunLifecycle:
@@ -379,3 +379,66 @@ class TestTripTypeInScheduler:
         url = _build_google_flights_url("MCI", "LHR", "2024-06-01", return_date="2024-06-08")
         assert url.startswith("https://www.google.com/travel/flights?q=")
         assert "tt=1" not in url
+
+    def test_build_google_flights_url_with_stopover(self):
+        """URL with stopover airports includes 'via' parameter."""
+        url = _build_google_flights_url("MCI", "LHR", "2024-06-01", via_airports=["ORD"])
+        assert url.startswith("https://www.google.com/travel/flights?q=")
+        assert "via" in url and "ORD" in url
+
+    def test_build_google_flights_url_with_multiple_stopovers(self):
+        """URL with multiple stopovers includes all via airports."""
+        url = _build_google_flights_url("MCI", "LHR", "2024-06-01", via_airports=["ORD", "ATL"])
+        assert url.startswith("https://www.google.com/travel/flights?q=")
+        assert "via" in url and "ORD" in url and "ATL" in url
+
+
+class TestStopoverExtraction:
+    """Test extraction of stopover airports from flight segments."""
+
+    def test_extract_stopover_single_segment(self):
+        """Direct flight has no stopovers."""
+        flight = {
+            "itineraries": [{
+                "segments": [{"flight": {"number": "BA123"}, "arrival_airport": "LHR"}]
+            }]
+        }
+        via = _extract_stopover_airports(flight, "LHR")
+        assert via == []
+
+    def test_extract_stopover_multi_segment(self):
+        """Flight with connection includes intermediate airport."""
+        flight = {
+            "itineraries": [{
+                "segments": [
+                    {"flight": {"number": "BA123"}, "arrival_airport": "ORD"},
+                    {"flight": {"number": "AA456"}, "arrival_airport": "LHR"},
+                ]
+            }]
+        }
+        via = _extract_stopover_airports(flight, "LHR")
+        assert via == ["ORD"]
+
+    def test_extract_stopover_multiple_connections(self):
+        """Flight with multiple connections includes all intermediate airports."""
+        flight = {
+            "itineraries": [{
+                "segments": [
+                    {"flight": {"number": "BA123"}, "arrival_airport": "ORD"},
+                    {"flight": {"number": "AA456"}, "arrival_airport": "ATL"},
+                    {"flight": {"number": "UA789"}, "arrival_airport": "LHR"},
+                ]
+            }]
+        }
+        via = _extract_stopover_airports(flight, "LHR")
+        assert via == ["ORD", "ATL"]
+
+    def test_extract_stopover_no_airport_data(self):
+        """Missing airport data returns empty list."""
+        flight = {
+            "itineraries": [{
+                "segments": [{"flight": {"number": "BA123"}}]
+            }]
+        }
+        via = _extract_stopover_airports(flight, "LHR")
+        assert via == []

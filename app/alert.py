@@ -5,6 +5,7 @@ import time
 
 import httpx
 
+from app.bot import _escape_md
 from app.config import config
 from app.models.flight import FlightDeal
 
@@ -90,29 +91,39 @@ class TelegramBot:
             return None
 
     def _format_alert_message(self, flight_deal: FlightDeal) -> str:
-        """Format flight deal alert message."""
+        """Format flight deal alert message with MarkdownV2 escaping.
+
+        Escapes only dynamic values (prices, airports, dates, URLs) BEFORE
+        building Markdown formatting, so *bold* and [links](url) work correctly.
+        """
         deal_emoji = "🚨" if flight_deal.deal_type == "mistake_fare" else "🔥"
+
+        # Escape dynamic values that need escaping
+        origin = _escape_md(flight_deal.origin)
+        destination = _escape_md(flight_deal.destination)
+        airline = _escape_md(flight_deal.airline)
+        flight_numbers = _escape_md(flight_deal.flight_numbers)
+        departure_date = _escape_md(flight_deal.departure_date)
+        original_price = _escape_md(f"{flight_deal.original_price_usd:.2f}")
+        current_price = _escape_md(f"{flight_deal.current_price_usd:.2f}")
+        price_drop = _escape_md(f"{flight_deal.price_drop_percent:.1f}")
+        booking_url = _escape_md(flight_deal.booking_url)
 
         message = f"""{deal_emoji} *Flight Deal Alert*
 
 *{flight_deal.deal_type.replace('_', ' ').title()}*
 
-📍 {flight_deal.origin} → {flight_deal.destination}
-📅 {flight_deal.departure_date}
-✈️ {flight_deal.airline}
-🎫 {flight_deal.flight_numbers}
+📍 {origin} → {destination}
+📅 {departure_date}
+✈️ {airline}
+🎫 {flight_numbers}
 
-💰 ${flight_deal.original_price_usd:.2f} → ${flight_deal.current_price_usd:.2f}
-📉 {flight_deal.price_drop_percent:.1f}% OFF
+💰 ${original_price} → ${current_price}
+📉 {price_drop}% OFF
 
-[Book Now]({flight_deal.booking_url})
+[Book Now]({booking_url})
 
 _Deal expires in 24 hours or when inventory runs out_"""
-
-        # Escape special characters for MarkdownV2
-        escape_chars = r"_*[]()~`>#+-=|{}.!"
-        for char in escape_chars:
-            message = message.replace(char, f"\\{char}")
 
         return message
 

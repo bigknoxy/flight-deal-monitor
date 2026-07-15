@@ -11,7 +11,8 @@
     <script src="/static/js/dashboard.js" defer></script>
     {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% if no_sidebar %}auth-page{% endif %}">
+    {% if not no_sidebar %}
     <button class="menu-toggle" id="menu-toggle" aria-label="Toggle navigation">&#9776;</button>
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
@@ -38,6 +39,7 @@
             </a>
         </nav>
     </aside>
+    {% endif %}
 
     <main class="main-content">
         {% block content %}{% endblock %}

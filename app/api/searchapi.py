@@ -76,7 +76,10 @@ class SearchAPIClient:
         for seg in segments_raw:
             flight_number = seg.get("flight_number", "") or ""
             normalized_segments.append(
-                {"flight": {"number": flight_number.replace(" ", "")}}
+                {
+                    "flight": {"number": flight_number.replace(" ", "")},
+                    "arrival_airport": seg.get("arrival_airport", ""),
+                }
             )
 
         # Price: raw value is in cents, convert to USD

@@ -39,11 +39,9 @@ class TestFormatAlertMessage:
         assert "MCI" in msg
         assert "LHR" in msg
         assert "Mistake Fare" in msg
-        # $ and . are escaped for MarkdownV2
-        assert "500\\.00" in msg
-        assert "150\\.00" in msg
-        assert "70\\.0%" in msg
-        assert "Book Now" in msg
+        # Bold formatting should be preserved, not escaped
+        assert r"\*" not in msg, "Asterisks should NOT be escaped"
+        assert "[Book Now](" in msg  # Link format preserved
 
     def test_flash_sale_format(self):
         bot = TelegramBot()
@@ -51,10 +49,10 @@ class TestFormatAlertMessage:
         msg = bot._format_alert_message(deal)
         assert "🔥" in msg
         assert "Flash Sale" in msg
-        assert "250\\.00" in msg
+        assert r"\*" not in msg  # No escaped asterisks
 
-    def test_markdown_special_chars_escaped(self):
-        """Characters special to Telegram MarkdownV2 must be escaped."""
+    def test_markdown_special_chars_escaped_in_values(self):
+        """Characters special to Telegram MarkdownV2 in dynamic values are escaped, but formatting is preserved."""
         bot = TelegramBot()
         deal = _make_deal(
             booking_url="https://example.com/test?a=b&c=d",
@@ -66,6 +64,8 @@ class TestFormatAlertMessage:
         assert "example\\.com" in msg
         # Hyphens in dates must be escaped
         assert "2024\\-06\\-01" in msg
+        # Bold formatting preserved
+        assert r"\*" not in msg
 
     def test_rate_limiter_resets_on_new_hour(self):
         """_is_rate_limited must reset counter each hour."""
