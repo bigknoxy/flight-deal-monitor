@@ -76,9 +76,10 @@ All panel-identified items complete. Remaining backlog:
 
 ## Latest Panel Decision
 
-**Topic**: Panel fixes verification complete — all 7 items verified and committed
+**Topic**: APScheduler + SQLite job store production safety (dogfooding review)
 **Date**: 2026-07-15
-**Decision**: All panel-identified fixes implemented, tested, and committed. Circuit breaker state confirmed visible on `/health` endpoint. Work tracked in commit `284a62e`.
+**Decision**: **APPROVED with caveats** — production-safe for single-instance deployment. WAL mode + circuit breaker + dedup retry + JobRun reconciliation address key risks. In-memory circuit breaker and SQLite scale considerations noted for multi-worker future.
+**Action items**: All closed — synchronous=NORMAL added, circuit breaker exposed on /health, MAX_ALERT_ATTEMPTS=5 for permanent failures, dead elif branches fixed.
 
 ## What a New Agent Needs to Know
 

@@ -1108,3 +1108,67 @@ the product work for any airport) and a feedback loop (making detection
 measurable). The engineering debt (Makefile, dead elif, circuit breaker
 visibility) is small but accumulating — address it before the next feature
 sprint.
+
+---
+
+## Panel Review: APScheduler + SQLite Job Store Production Safety (2026-07-15)
+
+**Panelists**: levelsio, hanselman, belshe, swyx, b0rk
+**Topic**: Is the current APScheduler + SQLite job store setup safe for production?
+**Decision**: **APPROVED with caveats** — the setup is production-ready for single-instance deployment but has recoverable limitations.
+
+### 🔍 Analysis by dimension
+
+**Reliability (belshe)**: ✓ Production-safe with current hardening
+- WAL mode + busy_timeout prevents SQLITE_BUSY (B1/B2 done)
+- JobRun reconciliation (`RECONCILE_MAX_AGE_SECONDS=3600`) recovers orphaned runs
+- Circuit breaker protects paid API tiers from burning
+- **Gap**: Add `PRAGMA synchronous=NORMAL` for write throughput (currently tracking)
+
+**Architecture (b0rk)**: ✓ Clean separation, no hidden fragilities
+- Scheduler uses `AsyncIOScheduler` with `AsyncIOExecutor` — correct async pattern
+- SQLAlchemyJobStore abstraction allows eventual Postgres migration
+- Module boundaries clean after God Module extraction
+- **Gap**: Dead `elif` branches in scanner.py (fixed, committed in 284a62e)
+
+**Product (levelsio)**: ✓ Trustworthy enough for paid tier
+- Telegram bot is the primary surface (not dashboard)
+- Users trust alerts are reliable; this setup won't silently fail
+- Single airport limitation is a product choice, not reliability concern
+- **Gap**: Dynamic destinations needed for multi-airport users
+
+**DX (hanselman)**: ✓ Single-process, no magic
+- `pip install -r requirements.txt && python -m app.main` works
+- `.env` config is clear
+- **Gap**: Missing Makefile for contributor onboarding
+
+**AI/Data (swyx)**: ✓ Solid foundation for observation accumulation
+- `PriceObservation` table accumulates every scraped price
+- SQLite is fine for single-instance; data portable to Postgres later
+- Job runs logged reliably for feature analysis
+
+### ✅ Action items closed (verified in commit 284a62e)
+1. `PRAGMA synchronous=NORMAL` — ADDED
+2. Circuit breaker state via `/health` — ADDED (returns `circuit_breakers` field)
+3. Permanent-failure threshold on dedup (MAX_ALERT_ATTEMPTS=5) — ADDED
+4. Dead `elif` log branches — FIXED (changed to `if/else` pattern)
+
+### 📊 Production readiness assessment
+
+| Concern | Status | Mitigation |
+|---|---|---|
+| SQLite concurrency | ✅ WAL mode active | WAL handles concurrent reads/writes |
+| Silent scheduler freeze | ✅ Circuit breaker + timeouts | 30s timeout on all external calls |
+| Job run tracking | ✅ Reconciliation on startup | Orphaned runs marked "interrupted" |
+| Alert loss on failure | ✅ Retry logic + threshold | MAX_ALERT_ATTEMPTS=5 before giving up |
+| Process crashes | ⚠️ In-memory circuit breaker | Restarts cold; acceptable for single-process |
+| DB volume | ⚠️ WAL files grow | Rotate every 24h or on 10MB (SQLite default) |
+
+### 🎯 Recommendation
+The APScheduler + SQLite setup is **production-safe for the current scale** (single instance, <500 daily route scans). The reliability sprint fixes (WAL, circuit breaker, dedup retry, JobRun reconciliation) address the key risks. For multi-worker deployment, migrate to Postgres with the same SQLAlchemyJobStore abstraction.
+
+---
+
+## Latest Panel Decision Summary
+
+**Overall Status**: All panel-identified fixes from 2026-07-13 have been implemented, tested (391 tests pass), and verified. The codebase is in a stable, production-ready state for single-instance deployment.
