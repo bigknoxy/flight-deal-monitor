@@ -137,7 +137,7 @@ async def _scan_route(
         )
         if flights:
             logger.info(f"fli returned {len(flights)} flights (FREE)")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         fli_error = True
         logger.warning(
             f"fli search timed out after {FLI_TIMEOUT_SECONDS}s for "

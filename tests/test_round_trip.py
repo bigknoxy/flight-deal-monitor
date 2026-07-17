@@ -96,7 +96,7 @@ async def test_timeout_uses_derived():
     session = AsyncMock()
 
     async def boom(*_a, **_k):
-        raise asyncio.TimeoutError()
+        raise TimeoutError()
 
     mock_client = MagicMock()
     mock_client.search_flights = boom
