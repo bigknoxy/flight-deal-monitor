@@ -66,7 +66,6 @@ def _build_booking_url(
     departure_date: str,
     return_date: str | None = None,
     airline: str = "",
-    via_airports: list[str] | None = None,
 ) -> str:
     """Build a flight-search deep link that reliably pre-fills origin,
     destination and dates.
@@ -232,9 +231,8 @@ async def _scan_route(
                 ]
             )
             price = float(flight.get("price", {}).get("total", 0))
-            via_airports = _extract_stopover_airports(flight, destination)
             booking_url = _build_booking_url(
-                origin, destination, departure_date, return_date, airline, via_airports
+                origin, destination, departure_date, return_date, airline
             )
 
             if price < config.app.min_price_usd:

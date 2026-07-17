@@ -389,10 +389,9 @@ class TestTripTypeInScheduler:
         url = _build_booking_url("MCI", "LHR", "2024-06-01", airline="ba")
         assert "a=BA" in url
 
-    def test_build_booking_url_ignores_stopovers(self):
-        """Kayak path format has no via segment; stopovers are ignored gracefully."""
-        url = _build_booking_url("MCI", "LHR", "2024-06-01", via_airports=["ORD", "ATL"])
-        assert "ORD" not in url and "ATL" not in url
+    def test_build_booking_url_has_no_stopover_segment(self):
+        """Kayak path format has no via segment in the URL."""
+        url = _build_booking_url("MCI", "LHR", "2024-06-01")
         assert url.startswith("https://www.kayak.com/flights/MCI-LHR/")
 
     def test_booking_url_host_matches_ui_label(self):
