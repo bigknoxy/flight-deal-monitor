@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.flight import FlightDeal
+from app.models.flight import AlertHistory, FlightDeal
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +34,25 @@ async def mark_flight_seen(
     await session.commit()
 
 
+# Max alert attempts before marking permanently failed (stops infinite retries)
+MAX_ALERT_ATTEMPTS = 5
+
+
 async def is_flight_seen_recently(
     session: AsyncSession,
     route_id: str,
     hours: int = 24,
 ) -> bool:
-    """Check if a flight was seen in the last N hours."""
+    """Check if a flight was seen in the last N hours.
+
+    A deal is considered "seen" only if its most recent alert was
+    successfully delivered. If the last alert failed (or no alert
+    has been sent yet), the deal is re-eligible for the next sweep
+    so transient delivery failures don't permanently suppress it.
+
+    If a deal has failed MAX_ALERT_ATTEMPTS times without success,
+    it is marked permanently failed and will not be retried.
+    """
     cutoff = datetime.utcnow() - timedelta(hours=hours)
 
     query = (
@@ -51,7 +64,40 @@ async def is_flight_seen_recently(
     )
 
     result = await session.execute(query)
-    return result.scalar_one_or_none() is not None
+    deal = result.scalar_one_or_none()
+    if deal is None:
+        return False
+
+    # Check all AlertHistory rows for this deal to count failures.
+    alert_query = (
+        select(AlertHistory)
+        .where(AlertHistory.flight_deal_id == deal.id)
+        .order_by(AlertHistory.sent_at.desc())
+    )
+    alert_result = await session.execute(alert_query)
+    alerts = alert_result.scalars().all()
+
+    if not alerts:
+        # No alert has been sent yet — retry.
+        return False
+
+    # Count failed attempts. If all alerts failed and we've hit the threshold,
+    # mark as permanently failed to stop retry storms.
+    failed_count = sum(1 for a in alerts if a.status != "sent")
+    if failed_count >= MAX_ALERT_ATTEMPTS:
+        logger.info(
+            f"Deal {deal.id} has {failed_count} failed alert attempts; "
+            "marking permanently failed, will not retry"
+        )
+        deal.expired_at = datetime.utcnow()
+        session.add(deal)
+        await session.commit()
+        return True
+
+    if all(a.status != "sent" for a in alerts):
+        # Last alert failed or was rate-limited — retry.
+        return False
+    return True
 
 
 async def cleanup_expired_deals(

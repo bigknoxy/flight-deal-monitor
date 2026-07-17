@@ -39,7 +39,7 @@ class AmadeusClient:
             "client_secret": self.client_secret,
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(url, data=data)
             response.raise_for_status()
             result = response.json()
@@ -57,6 +57,7 @@ class AmadeusClient:
         destination: str,
         departure_date: str,
         max_results: int = 10,
+        return_date: str | None = None,
     ) -> list[dict]:
         """Search for flights using Amadeus API."""
         url = f"{self.base_url}/shopping/flight-offers"
@@ -68,8 +69,10 @@ class AmadeusClient:
             "adults": 1,
             "max": max_results,
         }
+        if return_date:
+            params["returnDate"] = return_date
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
             result = response.json()

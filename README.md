@@ -16,10 +16,10 @@ pip install -r requirements.txt
 cp config/.env.example .env   # then edit .env with your API keys
 
 # Run the app
-python -m app.main             # starts on http://localhost:8000
+python -m app.main             # starts on http://localhost:8787
 
 # Open the dashboard
-open http://localhost:8000/dashboard
+open http://localhost:8787/dashboard
 
 # Run tests
 pytest tests/ -v
@@ -29,7 +29,7 @@ ruff check app/ tests/
 
 # Docker
 docker-compose up -d           # starts containerized app
-curl http://localhost:8000/health  # verify health
+curl http://localhost:8787/health  # verify health
 ```
 
 ## Features ✨
@@ -97,7 +97,7 @@ curl http://localhost:8000/health  # verify health
    python -m app.main
    ```
 
-The app will start on `http://localhost:8000`
+The app will start on `http://localhost:8787`
 
 ### Docker Deployment
 
@@ -113,12 +113,12 @@ The app will start on `http://localhost:8000`
 
 3. **Check health status**:
    ```bash
-   curl http://localhost:8000/health
+   curl http://localhost:8787/health
    ```
 
 ## Web UI Dashboard 🖥️
 
-The dashboard is available at `http://localhost:8000/dashboard` after registering an account.
+The dashboard is available at `http://localhost:8787/dashboard` after registering an account.
 
 ### Pages
 
@@ -130,7 +130,7 @@ The dashboard is available at `http://localhost:8000/dashboard` after registerin
 | **Deals** | `/dashboard/deals` | Browse and filter detected deals |
 | **Routes** | `/dashboard/routes` | Add/remove destination airports, view long weekend config |
 | **History** | `/dashboard/history` | Job run log with status, duration, deals, alerts |
-| **Settings** | `/dashboard/settings` | Read-only config display |
+| **Settings** | `/dashboard/settings` | Editable config form (notifiers, thresholds, sweep intervals, route multipliers, cache TTL, long-weekend toggle) — saves to DB |
 
 ### Dashboard Overview
 - **Stats cards**: Total deals, active routes, scheduler status, last sweep time
@@ -140,7 +140,7 @@ The dashboard is available at `http://localhost:8000/dashboard` after registerin
 ### Deals Page
 - Filter by deal type (mistake fare, flash sale, deep flash)
 - Filter by origin/destination airport
-- HTMX-powered infinite scroll with "Load More"
+- HTMX-powered "Load More" pagination button
 - Columns: route, type, price, discount, airline, date, booking link
 
 ### Routes Page
@@ -156,8 +156,8 @@ The dashboard is available at `http://localhost:8000/dashboard` after registerin
 - Error messages for failed runs
 
 ### Settings Page
-- Read-only display of all app configuration
-- Sections: Application, Deal Thresholds, Sweep Intervals, Route Multipliers, Cache, Environment
+- Editable form — changes persist to the database and take effect on reload (no restart needed)
+- Sections: Application, Deal Thresholds, Sweep Intervals, Route Multipliers, Cache, Long Weekend, Environment
 
 ## Configuration ⚙️
 
@@ -325,7 +325,7 @@ List detected flight deals with pagination and filtering.
       "deal_type": "mistake_fare",
       "price": 150.00,
       "median_price": 500.00,
-      "url": "https://www.google.com/travel/flights?...",
+      "url": "https://www.kayak.com/flights/MCI-LHR/2024-06-01",
       "seen_at": "2024-06-01T12:00:00",
       "expired_at": "2024-06-02T12:00:00"
     }
@@ -450,7 +450,7 @@ flight-deal-monitor/
 │   │   │   ├── deals.html   # Deal table with HTMX filters
 │   │   │   ├── routes.html  # Route management with add/remove
 │   │   │   ├── history.html # Job run log
-│   │   │   └── settings.html # Read-only config display
+│   │   │   └── settings.html # Editable config form (saves to DB)
 │   │   ├── auth/
 │   │   │   ├── auth_form.html  # Shared auth form template
 │   │   │   ├── login.html      # Login page
@@ -601,7 +601,7 @@ image: ghcr.io/bigknoxy/flight-deal-monitor:latest
 ### Health Checks
 ```bash
 # Check app health
-curl http://localhost:8000/health
+curl http://localhost:8787/health
 
 # Check logs
 docker-compose logs -f app
@@ -637,7 +637,7 @@ docker-compose logs -f app
 
 **Issue**: Dashboard shows "Not Found"
 - **Solution**: Ensure you're registered and logged in
-- **Solution**: Check that the app is running on port 8000
+- **Solution**: Check that the app is running on port 8787
 
 ## Architecture
 

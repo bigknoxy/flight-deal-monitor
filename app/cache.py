@@ -29,9 +29,14 @@ class PriceCache:
         self._cache = TTLCache(default_ttl_seconds)
 
     async def get_cached_route_data(
-        self, origin: str, destination: str, departure_date: str
+        self,
+        origin: str,
+        destination: str,
+        departure_date: str,
+        return_date: str | None = None,
+        suffix: str = "",
     ) -> tuple[list[dict], datetime] | None:
-        key = f"{origin}:{destination}:{departure_date}"
+        key = self._build_key(origin, destination, departure_date, return_date, suffix)
         data = self._cache.get(key)
         if data is None:
             return None
@@ -39,10 +44,27 @@ class PriceCache:
         return (flights, datetime.fromtimestamp(timestamp))
 
     async def set_cached_route_data(
-        self, origin: str, destination: str, departure_date: str, flights: list[dict]
+        self,
+        origin: str,
+        destination: str,
+        departure_date: str,
+        flights: list[dict],
+        return_date: str | None = None,
+        suffix: str = "",
     ) -> None:
-        key = f"{origin}:{destination}:{departure_date}"
+        key = self._build_key(origin, destination, departure_date, return_date, suffix)
         self._cache.set(key, (flights, time.time()))
+
+    @staticmethod
+    def _build_key(
+        origin: str,
+        destination: str,
+        departure_date: str,
+        return_date: str | None,
+        suffix: str,
+    ) -> str:
+        date_part = departure_date if not return_date else f"{departure_date}-{return_date}"
+        return f"{origin}:{destination}:{date_part}:{suffix}"
 
     def clear(self) -> None:
         self._cache.clear()

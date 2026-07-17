@@ -3,6 +3,15 @@ import pytest
 from app.models.flight import FlightDeal
 
 
+@pytest.fixture(autouse=True)
+def _unlimited_alert_budget(monkeypatch):
+    """The global hourly alert limiter is process-global state; neutralize it
+    so sweep tests (which fire many alerts in one pass) stay deterministic."""
+    import app.alert_dispatch as ad
+
+    monkeypatch.setattr(ad, "acquire_alert_slot", lambda: True)
+
+
 @pytest.fixture
 def make_deal():
     def _make_deal(**kwargs):
@@ -21,4 +30,5 @@ def make_deal():
         )
         defaults.update(kwargs)
         return FlightDeal(**defaults)
+
     return _make_deal
