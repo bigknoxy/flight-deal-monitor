@@ -7,17 +7,27 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      # Keep the SQLite DB inside the mounted ./data volume so it survives
+      # container recreation. The slim image has no curl, so the healthcheck
+      # below uses Python's stdlib instead.
+      - DATABASE_URL=sqlite:///./data/flight_deals.db
     volumes:
       - ./data:/app/data
-      - ./config/app.yaml:/app/config/app.yaml:ro
+      # Writable so the in-app Settings/Routes UI can persist changes.
+      - ./config/app.yaml:/app/config/app.yaml
     ports:
-      - "8000:8000"
+      - "8787:8787"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8787/health').status==200 else 1)"
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 60s
     networks:
       - flight-monitor-network
 

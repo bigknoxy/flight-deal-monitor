@@ -48,6 +48,7 @@ data/
 
 # Environment variables
 .env
+.env.bak
 .env.local
 
 # Logs
@@ -58,3 +59,4 @@ data/
 Thumbs.db
 .gstack/
 .playwright-mcp/
+.opencode/

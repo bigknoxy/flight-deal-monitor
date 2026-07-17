@@ -114,9 +114,8 @@ async def _get_deal_stats() -> dict:
         total_result = await session.execute(total_query)
         total = total_result.scalar() or 0
 
-        type_query = (
-            select(FlightDeal.deal_type, func.count())
-            .group_by(FlightDeal.deal_type)
+        type_query = select(FlightDeal.deal_type, func.count()).group_by(
+            FlightDeal.deal_type
         )
         type_result = await session.execute(type_query)
         by_type = dict(type_result.all())
@@ -141,7 +140,12 @@ async def _get_deal_stats() -> dict:
 
 
 async def _get_config_display() -> dict:
-    """Get config for display (without secrets)."""
+    """Get config for display (secrets masked)."""
+
+    # Mask any value that is set; never reveal raw tokens/passwords in the UI.
+    def _mask(value: str) -> str:
+        return "****" if value else ""
+
     return {
         "app": {
             "name": config.app.name,
@@ -175,16 +179,20 @@ async def _get_config_display() -> dict:
             "job_coalesce": config.app.job_coalesce,
         },
         "env": {
-            "telegram_bot_token": config.env.telegram_bot_token,
-            "telegram_chat_id": config.env.telegram_chat_id,
+            "telegram_bot_token": _mask(config.env.telegram_bot_token),
+            "telegram_chat_id": _mask(config.env.telegram_chat_id),
             "smtp_host": config.env.smtp_host,
             "smtp_port": config.env.smtp_port,
-            "smtp_user": config.env.smtp_user,
-            "smtp_pass": config.env.smtp_pass,
+            "smtp_user": _mask(config.env.smtp_user),
+            "smtp_pass": _mask(config.env.smtp_pass),
             "email_from": config.env.email_from,
             "email_to": config.env.email_to,
-            "slack_webhook_url": config.env.slack_webhook_url,
-            "discord_webhook_url": config.env.discord_webhook_url,
+            "slack_webhook_url": _mask(config.env.slack_webhook_url),
+            "discord_webhook_url": _mask(config.env.discord_webhook_url),
+            "searchapi_api_key": _mask(config.env.searchapi_api_key),
+            "amadeus_client_id": _mask(config.env.amadeus_client_id),
+            "amadeus_client_secret": _mask(config.env.amadeus_client_secret),
+            "duffel_api_token": _mask(config.env.duffel_api_token),
             "amadeus_env": config.env.amadeus_env,
             "log_level": config.env.log_level,
         },
@@ -225,19 +233,22 @@ async def dashboard_index(
             recent = recent_result.scalar_one_or_none()
 
         if recent:
-            route_deals.append({
-                "origin": recent.origin,
-                "destination": recent.destination,
-                "current_price": recent.current_price_usd,
-                "original_price": recent.original_price_usd,
-                "price_drop": recent.price_drop_percent,
-                "airline": recent.airline,
-                "deal_type": recent.deal_type,
-                "deal_count": route["count"],
-                "last_checked": recent.seen_at.strftime("%Y-%m-%d %H:%M")
-                if recent.seen_at else None,
-                "trend": "down" if recent.price_drop_percent > 0 else "flat",
-            })
+            route_deals.append(
+                {
+                    "origin": recent.origin,
+                    "destination": recent.destination,
+                    "current_price": recent.current_price_usd,
+                    "original_price": recent.original_price_usd,
+                    "price_drop": recent.price_drop_percent,
+                    "airline": recent.airline,
+                    "deal_type": recent.deal_type,
+                    "deal_count": route["count"],
+                    "last_checked": recent.seen_at.strftime("%Y-%m-%d %H:%M")
+                    if recent.seen_at
+                    else None,
+                    "trend": "down" if recent.price_drop_percent > 0 else "flat",
+                }
+            )
 
     return render(
         request,
@@ -342,6 +353,7 @@ def _reload_config():
     """Reload the application configuration from YAML."""
     path = "config/app.yaml"
     from app.config import AppConfig  # noqa: PLC0415
+
     config.app = AppConfig.from_yaml(path)
 
 
@@ -434,7 +446,8 @@ async def dashboard_history(
         {
             "job_id": j.job_id,
             "started_at": j.started_at.strftime("%Y-%m-%d %H:%M:%S")
-            if j.started_at else None,
+            if j.started_at
+            else None,
             "duration_seconds": j.duration_seconds,
             "deals_detected": j.deals_detected,
             "alerts_sent": j.alerts_sent,
@@ -604,20 +617,18 @@ async def dashboard_settings_save(
 
         # Reload env config
         from app.config import EnvConfig  # noqa: PLC0415
+
         config.env = EnvConfig()
 
         # Rebuild Telegram bot with new token
         from app.alert import telegram_bot  # noqa: PLC0415
+
         telegram_bot.bot_token = config.env.telegram_bot_token
         telegram_bot.chat_id = config.env.telegram_chat_id
         telegram_bot.base_url = f"https://api.telegram.org/bot{telegram_bot.bot_token}"
 
-        return await dashboard_settings(
-            request, user, saved=True, save_error=None
-        )
+        return await dashboard_settings(request, user, saved=True, save_error=None)
 
     except Exception as e:
         logger.error(f"Failed to save settings: {e}")
-        return await dashboard_settings(
-            request, user, saved=False, save_error=str(e)
-        )
+        return await dashboard_settings(request, user, saved=False, save_error=str(e))

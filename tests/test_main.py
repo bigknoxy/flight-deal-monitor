@@ -54,7 +54,7 @@ class TestHealthEndpoint:
                 "job_count": 0,
             }
             response = await client.get("/health")
-            assert response.status_code == 200
+            assert response.status_code == 503
             data = response.json()
             assert data["status"] == "unhealthy"
             assert data["scheduler_running"] is False

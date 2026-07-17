@@ -233,10 +233,10 @@ class TestSendDealAlertIntegration:
         session = AsyncMock()
         session.add = MagicMock()
 
-        with patch("app.scheduler_jobs.telegram_bot") as mock_telegram:
-            with patch("app.scheduler_jobs.email_notifier") as mock_email:
-                with patch("app.scheduler_jobs.slack_notifier") as mock_slack:
-                    with patch("app.scheduler_jobs.discord_notifier") as mock_discord:
+        with patch("app.alert_dispatch.telegram_bot") as mock_telegram:
+            with patch("app.alert_dispatch.email_notifier") as mock_email:
+                with patch("app.alert_dispatch.slack_notifier") as mock_slack:
+                    with patch("app.alert_dispatch.discord_notifier") as mock_discord:
                         mock_telegram.send_alert = AsyncMock(return_value="msg_123")
                         mock_email.send_alert = AsyncMock(return_value="email_sent")
                         mock_slack.send_alert = AsyncMock(return_value="sent")
@@ -262,10 +262,10 @@ class TestSendDealAlertIntegration:
         session = AsyncMock()
         session.add = MagicMock()
 
-        with patch("app.scheduler_jobs.telegram_bot") as mock_telegram:
-            with patch("app.scheduler_jobs.email_notifier") as mock_email:
-                with patch("app.scheduler_jobs.slack_notifier") as mock_slack:
-                    with patch("app.scheduler_jobs.discord_notifier") as mock_discord:
+        with patch("app.alert_dispatch.telegram_bot") as mock_telegram:
+            with patch("app.alert_dispatch.email_notifier") as mock_email:
+                with patch("app.alert_dispatch.slack_notifier") as mock_slack:
+                    with patch("app.alert_dispatch.discord_notifier") as mock_discord:
                         mock_telegram.send_alert = AsyncMock(return_value=None)
                         mock_email.send_alert = AsyncMock(return_value="email_sent")
                         mock_slack.send_alert = AsyncMock(return_value="sent")
@@ -277,7 +277,9 @@ class TestSendDealAlertIntegration:
                         mock_email.send_alert.assert_awaited_once_with(deal)
                         mock_slack.send_alert.assert_awaited_once_with(deal)
                         mock_discord.send_alert.assert_awaited_once_with(deal)
-                        assert result == (1, 0)
+                        # Telegram failed, but email/slack/discord still delivered
+                        # the deal — so the alert is recorded as "sent", not "failed".
+                        assert result == (1, 1)
 
     @pytest.mark.asyncio
     async def test_email_failure_does_not_block(self, make_deal):
@@ -287,10 +289,10 @@ class TestSendDealAlertIntegration:
         session = AsyncMock()
         session.add = MagicMock()
 
-        with patch("app.scheduler_jobs.telegram_bot") as mock_telegram:
-            with patch("app.scheduler_jobs.email_notifier") as mock_email:
-                with patch("app.scheduler_jobs.slack_notifier") as mock_slack:
-                    with patch("app.scheduler_jobs.discord_notifier") as mock_discord:
+        with patch("app.alert_dispatch.telegram_bot") as mock_telegram:
+            with patch("app.alert_dispatch.email_notifier") as mock_email:
+                with patch("app.alert_dispatch.slack_notifier") as mock_slack:
+                    with patch("app.alert_dispatch.discord_notifier") as mock_discord:
                         mock_telegram.send_alert = AsyncMock(return_value="msg_456")
                         mock_email.send_alert = AsyncMock(
                             side_effect=Exception("SMTP down")
@@ -314,10 +316,10 @@ class TestSendDealAlertIntegration:
         session = AsyncMock()
         session.add = MagicMock()
 
-        with patch("app.scheduler_jobs.telegram_bot") as mock_telegram:
-            with patch("app.scheduler_jobs.email_notifier") as mock_email:
-                with patch("app.scheduler_jobs.slack_notifier") as mock_slack:
-                    with patch("app.scheduler_jobs.discord_notifier") as mock_discord:
+        with patch("app.alert_dispatch.telegram_bot") as mock_telegram:
+            with patch("app.alert_dispatch.email_notifier") as mock_email:
+                with patch("app.alert_dispatch.slack_notifier") as mock_slack:
+                    with patch("app.alert_dispatch.discord_notifier") as mock_discord:
                         mock_telegram.send_alert = AsyncMock(return_value=None)
                         mock_email.send_alert = AsyncMock(return_value=None)
                         mock_slack.send_alert = AsyncMock(return_value=None)

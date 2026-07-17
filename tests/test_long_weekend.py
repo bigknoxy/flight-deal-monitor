@@ -127,7 +127,7 @@ class TestLongWeekendSweepLifecycle:
             patch("app.scheduler_jobs._scan_route", return_value=[deal]),
             patch("app.scheduler_jobs._start_job_run") as mock_start,
             patch("app.scheduler_jobs._complete_job_run") as mock_complete,
-            patch("app.scheduler_jobs.telegram_bot.send_alert", return_value="msg_1") as mock_send,
+            patch("app.alert_dispatch.telegram_bot.send_alert", return_value="msg_1") as mock_send,
         ):
             from app.scheduler_jobs import run_long_weekend_sweep
 
@@ -153,6 +153,8 @@ class TestLongWeekendSweepLifecycle:
             patch("app.scheduler_jobs.AsyncSessionLocal", return_value=mock_session),
             patch("app.scheduler_jobs._scan_route", return_value=[]) as mock_scan,
             patch("app.scheduler_jobs._start_job_run") as mock_start,
+            patch("app.scheduler_jobs._complete_job_run"),
+            patch("app.scheduler_jobs._fail_job_run"),
         ):
             from app.scheduler_jobs import run_long_weekend_sweep
 

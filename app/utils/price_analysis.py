@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config
-from app.models.flight import FlightDeal
+from app.models.flight import FlightDeal, PriceObservation
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +19,14 @@ def generate_route_id(
     departure_date: str,
     airline: str,
     suffix: str = "",
+    trip_type: str = "one_way",
 ) -> str:
     """Generate unique route ID for deduplication.
 
     An optional suffix differentiates route types (e.g. "-long-weekend").
+    ``trip_type`` ensures one-way and round-trip never collide in the dedup key.
     """
-    data = f"{origin}-{destination}-{departure_date}-{airline}{suffix}"
+    data = f"{origin}-{destination}-{departure_date}-{airline}-{trip_type}{suffix}"
     return hashlib.sha256(data.encode()).hexdigest()[:16]
 
 
@@ -33,26 +35,33 @@ async def calculate_median_price(
     origin: str,
     destination: str,
     days_back: int = 30,
+    min_samples: int = 5,
+    trip_type: str = "one_way",
 ) -> float | None:
-    """Calculate median price for a route over the last N days.
+    """Calculate median price for a route from accumulated price observations.
 
-    Returns None if no price history exists (caller should use current
-    search results to establish a baseline instead of a hardcoded default).
+    Returns None when there are fewer than ``min_samples`` observations in the
+    window — i.e. the route is in cold-start and has no real baseline yet, so
+    callers should NOT treat the current batch as deals.
     """
     cutoff = datetime.utcnow() - timedelta(days=days_back)
 
     query = (
-        select(FlightDeal.original_price_usd)
-        .where(FlightDeal.origin == origin)
-        .where(FlightDeal.destination == destination)
-        .where(FlightDeal.seen_at >= cutoff)
+        select(PriceObservation.price_usd)
+        .where(PriceObservation.origin == origin)
+        .where(PriceObservation.destination == destination)
+        .where(PriceObservation.observed_at >= cutoff)
+        .where(PriceObservation.trip_type == trip_type)
     )
 
     result = await session.execute(query)
     prices: list[float] = [row[0] for row in result.all()]
 
-    if not prices:
-        logger.info(f"No price history for {origin}->{destination}, using search results as baseline")
+    if len(prices) < min_samples:
+        logger.info(
+            f"Insufficient baseline for {origin}->{destination}: "
+            f"{len(prices)}/{min_samples} samples; treating as cold-start"
+        )
         return None
 
     sorted_prices = sorted(prices)
@@ -64,6 +73,72 @@ async def calculate_median_price(
 
     logger.info(f"Median price for {origin}->{destination}: ${median:.2f} (n={n})")
     return median
+
+
+async def record_price_observations(
+    session: AsyncSession,
+    origin: str,
+    destination: str,
+    departure_date: str,
+    flights: list[dict],
+    min_price_usd: float = 0.0,
+    trip_type: str = "one_way",
+) -> int:
+    """Persist every scraped price so a real baseline can accumulate.
+
+    Returns the number of observations recorded. These feed
+    ``calculate_median_price`` on subsequent scans (the current batch is
+    intentionally NOT included in the median computed for this same scan).
+    """
+    from datetime import datetime
+
+    try:
+        dep_dt = datetime.strptime(departure_date, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        dep_dt = None
+
+    rows: list[PriceObservation] = []
+    for flight in flights:
+        try:
+            price = float(flight.get("price", {}).get("total", 0))
+        except (TypeError, ValueError):
+            continue
+        if price <= 0 or price < min_price_usd:
+            continue
+        airline = flight.get("validatingAirlineCodes", ["Unknown"])[0]
+
+        obs = PriceObservation(
+            origin=origin,
+            destination=destination,
+            departure_date=departure_date,
+            airline=airline,
+            price_usd=price,
+            trip_type=trip_type,
+        )
+
+        if dep_dt is not None:
+            now = datetime.utcnow()
+            days_until = (dep_dt - now).days
+            obs.days_until_departure = days_until
+            obs.departure_month = dep_dt.month
+            obs.departure_day_of_week = dep_dt.weekday()
+            obs.observed_at_month = now.month
+            obs.observed_at_day_of_week = now.weekday()
+            if days_until <= 7:
+                obs.booking_window_bucket = "0-7d"
+            elif days_until <= 21:
+                obs.booking_window_bucket = "8-21d"
+            elif days_until <= 60:
+                obs.booking_window_bucket = "22-60d"
+            else:
+                obs.booking_window_bucket = "61+d"
+
+        rows.append(obs)
+
+    if rows:
+        session.add_all(rows)
+        await session.commit()
+    return len(rows)
 
 
 def get_route_type(origin: str, destination: str) -> str:
@@ -129,6 +204,84 @@ def detect_deal(
     if price_drop_percent >= config.app.deal_thresholds.flash_sale_percent:
         return True, "flash_sale"
     return False, None
+
+
+async def calculate_percentile_baseline(
+    session: AsyncSession,
+    origin: str,
+    destination: str,
+    departure_date: str,
+    min_samples: int = 5,
+) -> dict[int, float] | None:
+    """Calculate percentile-based price thresholds for a route+departure-month.
+
+    Uses SQLite NTILE(100) window function to compute percentiles from
+    accumulated PriceObservation rows. Returns a dict mapping percentile
+    (5, 10, 20, 30, 50) to the price at that percentile, or None when
+    there are fewer than ``min_samples`` observations for this route+month.
+    """
+    try:
+        dep_dt = datetime.strptime(departure_date, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+
+    month = dep_dt.month
+
+    query = (
+        select(PriceObservation.price_usd)
+        .where(PriceObservation.origin == origin)
+        .where(PriceObservation.destination == destination)
+        .where(PriceObservation.departure_month == month)
+        .order_by(PriceObservation.price_usd)
+    )
+
+    result = await session.execute(query)
+    prices: list[float] = [row[0] for row in result.all()]
+
+    if len(prices) < min_samples:
+        logger.info(
+            f"Insufficient percentile baseline for {origin}->{destination} "
+            f"month={month}: {len(prices)}/{min_samples} samples"
+        )
+        return None
+
+    n = len(prices)
+    percentiles: dict[int, float] = {}
+    for pct in (5, 10, 20, 30, 50):
+        idx = max(0, min(n - 1, int(n * pct / 100)))
+        percentiles[pct] = prices[idx]
+
+    logger.info(
+        f"Percentile baseline for {origin}->{destination} month={month}: "
+        f"P50=${percentiles[50]:.2f} P20=${percentiles[20]:.2f} "
+        f"P10=${percentiles[10]:.2f} (n={n})"
+    )
+    return percentiles
+
+
+def detect_deal_learned(
+    current_price: float,
+    percentiles: dict[int, float],
+) -> tuple[bool, str | None]:
+    """Detect deal using learned percentile thresholds.
+
+    A price at or below the 20th percentile is a mistake fare,
+    at or below the 30th is a deep flash, and at or below the 50th
+    is a flash sale. This adapts to each route+month's natural price
+    distribution without hardcoded percentage thresholds.
+    """
+    p50 = percentiles.get(50)
+    if p50 is None or current_price >= p50:
+        return False, None
+
+    p20 = percentiles.get(20)
+    p30 = percentiles.get(30)
+
+    if p20 is not None and current_price <= p20:
+        return True, "mistake_fare"
+    if p30 is not None and current_price <= p30:
+        return True, "deep_flash"
+    return True, "flash_sale"
 
 
 def calculate_price_drop(current_price: float, median_price: float) -> float:
