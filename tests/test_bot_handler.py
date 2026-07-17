@@ -167,6 +167,9 @@ class TestBotWatchdog:
     @pytest.mark.asyncio
     async def test_start_polling_creates_task(self):
         bot = BotHandler()
+        # Token must be present or start_polling early-returns (bot disabled).
+        # Set it explicitly so the test does not depend on ambient env.
+        bot.token = "test_token"
         with patch.object(bot, "_poll_loop", new_callable=AsyncMock):
             await bot.start_polling()
             assert bot._poll_task is not None
