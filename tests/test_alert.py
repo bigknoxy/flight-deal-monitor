@@ -107,7 +107,12 @@ class TestTelegramBotHTTP:
 
     @pytest.fixture
     def bot(self):
-        return TelegramBot()
+        # Tests must not depend on ambient env (.env). Enable the bot
+        # explicitly so the alert path is deterministic in CI.
+        b = TelegramBot()
+        b.bot_token = "test_token"
+        b.chat_id = "123"
+        return b
 
     @pytest.mark.asyncio
     async def test_send_alert_success(self, bot):

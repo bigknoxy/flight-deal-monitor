@@ -9,9 +9,13 @@ class TestLifespan:
     """Test startup and shutdown lifecycle of the application."""
 
     @pytest.mark.asyncio
-    async def test_lifespan_startup_runs_init(self):
+    async def test_lifespan_startup_runs_init(self, monkeypatch):
         """Lifespan startup must init DB, test Telegram, setup + start scheduler."""
         from app.main import lifespan
+
+        # The Telegram boot check only runs when a token is configured, so set
+        # it explicitly — tests must not depend on ambient env (.env).
+        monkeypatch.setattr("app.main.config.env.telegram_bot_token", "test_token")
 
         with (
             patch("app.main.init_db") as mock_init,
