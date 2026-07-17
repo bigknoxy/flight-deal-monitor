@@ -1,9 +1,10 @@
 """Test FLIClient — _to_dict conversion and search with mocks."""
 
 import json
+from enum import Enum
 from unittest.mock import MagicMock, patch
 
-from app.scrapers.fli_client import FLIClient, FLISearchError, _to_dict
+from app.scrapers.fli_client import FLIClient, FLISearchError, _json_default, _to_dict
 
 
 def _make_mock_flight_result(**overrides) -> MagicMock:
@@ -76,6 +77,59 @@ class TestFLIClientToDict:
         d = _to_dict(result)
 
         assert d.get("booking_url", "") == ""
+
+    def test_to_dict_with_enum_arrival_airport(self):
+        """fli returns arrival_airport as an Airport enum; _to_dict must
+        store it losslessly (the enum itself is serializable via _json_default
+        in the subprocess, not here). Regression for the empty-UI crash where
+        json.dumps choked on the non-serializable Airport enum."""
+
+        class Airport(Enum):
+            JFK = "JFK"
+
+        result = _make_mock_flight_result()
+        result.legs[0].arrival_airport = Airport.JFK
+        d = _to_dict(result)
+
+        assert d["itineraries"][0]["segments"][0]["arrival_airport"] is Airport.JFK
+
+    def test_to_dict_with_none_price(self):
+        """A result with price=None must not raise NoneType.__format__;
+        it falls back to 0.00 so one bad result can't sink a whole route."""
+        result = _make_mock_flight_result(price=None)
+        d = _to_dict(result)
+
+        assert d["price"]["total"] == "0.00"
+
+    def test_to_dict_with_zero_price(self):
+        """An explicit 0.0 price is preserved (not treated as missing)."""
+        result = _make_mock_flight_result(price=0.0)
+        d = _to_dict(result)
+
+        assert d["price"]["total"] == "0.00"
+
+
+class TestFLIClientJsonDefault:
+    """Test the json.dumps fallback used by the fli subprocess.
+
+    Regression coverage for the empty-UI bug: fli emits Airport enum members
+    that plain json.dumps cannot serialize, crashing the search subprocess.
+    """
+
+    def test_json_default_coerces_enum_to_value(self):
+        class Airport(Enum):
+            JFK = "JFK"
+
+        assert _json_default(Airport.JFK) == "JFK"
+
+    def test_json_default_serializes_enum_result(self):
+        class Airport(Enum):
+            LHR = "LHR"
+
+        payload = {"flights": [{"arrival": Airport.LHR}]}
+        # Must not raise TypeError
+        serialized = json.dumps(payload, default=_json_default)
+        assert '"LHR"' in serialized
 
 
 class TestFLIClientSearch:

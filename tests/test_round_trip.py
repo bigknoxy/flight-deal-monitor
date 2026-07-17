@@ -327,4 +327,4 @@ def test_ui_shows_rt_when_present():
     deal2 = _make_deal()
     deal2.round_trip_price_usd = None
     out2 = t.render(deal=deal2)
-    assert "1-way · RT on Google" in out2
+    assert "1-way · RT on Kayak" in out2

@@ -11,7 +11,7 @@ from app.job_lifecycle import (
     _start_job_run,
 )
 from app.models.job import JobRun
-from app.scanner import _build_google_flights_url, _extract_stopover_airports, _scan_route
+from app.scanner import _build_booking_url, _extract_stopover_airports, _scan_route
 
 
 class TestJobRunLifecycle:
@@ -368,29 +368,43 @@ class TestTripTypeInScheduler:
                     assert len(deal_args) >= 1
                     assert deal_args[0].trip_type == "one_way"
 
-    def test_build_google_flights_url_is_round_trip(self):
-        """Google Flights URL must be round-trip (no tt=1 one-way param)."""
-        url = _build_google_flights_url("MCI", "LHR", "2024-06-01")
-        assert url.startswith("https://www.google.com/travel/flights?q=")
+    def test_build_booking_url_one_way(self):
+        """Booking URL must pre-fill origin, destination and date on Kayak."""
+        url = _build_booking_url("MCI", "LHR", "2024-06-01")
+        assert url == "https://www.kayak.com/flights/MCI-LHR/2024-06-01"
         assert "tt=1" not in url
 
-    def test_build_google_flights_url_with_return_date(self):
-        """URL with return_date should still be round-trip."""
-        url = _build_google_flights_url("MCI", "LHR", "2024-06-01", return_date="2024-06-08")
-        assert url.startswith("https://www.google.com/travel/flights?q=")
-        assert "tt=1" not in url
+    def test_build_booking_url_round_trip(self):
+        """URL with return_date appends the return segment (round-trip)."""
+        url = _build_booking_url("MCI", "LHR", "2024-06-01", return_date="2024-06-08")
+        assert url == "https://www.kayak.com/flights/MCI-LHR/2024-06-01/2024-06-08"
 
-    def test_build_google_flights_url_with_stopover(self):
-        """URL with stopover airports includes 'via' parameter."""
-        url = _build_google_flights_url("MCI", "LHR", "2024-06-01", via_airports=["ORD"])
-        assert url.startswith("https://www.google.com/travel/flights?q=")
-        assert "via" in url and "ORD" in url
+    def test_build_booking_url_lowercases_then_uppercases_codes(self):
+        """Airport codes are normalized to upper case."""
+        url = _build_booking_url("mci", "lhr", "2024-06-01")
+        assert "MCI-LHR" in url
 
-    def test_build_google_flights_url_with_multiple_stopovers(self):
-        """URL with multiple stopovers includes all via airports."""
-        url = _build_google_flights_url("MCI", "LHR", "2024-06-01", via_airports=["ORD", "ATL"])
-        assert url.startswith("https://www.google.com/travel/flights?q=")
-        assert "via" in url and "ORD" in url and "ATL" in url
+    def test_build_booking_url_with_airline(self):
+        """Airline filter is appended as a query param."""
+        url = _build_booking_url("MCI", "LHR", "2024-06-01", airline="ba")
+        assert "a=BA" in url
+
+    def test_build_booking_url_ignores_stopovers(self):
+        """Kayak path format has no via segment; stopovers are ignored gracefully."""
+        url = _build_booking_url("MCI", "LHR", "2024-06-01", via_airports=["ORD", "ATL"])
+        assert "ORD" not in url and "ATL" not in url
+        assert url.startswith("https://www.kayak.com/flights/MCI-LHR/")
+
+    def test_booking_url_host_matches_ui_label(self):
+        """Product-sync guard: the UI label says 'RT on Kayak' (see
+        partials/deal_row.html, dashboard/index.html). The booking URL host MUST
+        match, or users click a Kayak link expecting Google. If the provider
+        switches again, this test fails loudly instead of silently drifting."""
+        url = _build_booking_url("MCI", "LHR", "2024-06-01")
+        from urllib.parse import urlparse
+
+        host = urlparse(url).netloc
+        assert host == "www.kayak.com", f"UI says Kayak but URL host is {host}"
 
 
 class TestStopoverExtraction:

@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import sys
+from enum import Enum
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -100,11 +101,15 @@ def _run_fli_search(
 
         flights = []
         for r in results:
-            if isinstance(r, tuple):
-                for segment in r:
-                    flights.append(_to_dict(segment))
-            else:
-                flights.append(_to_dict(r))
+            try:
+                if isinstance(r, tuple):
+                    for segment in r:
+                        flights.append(_to_dict(segment))
+                else:
+                    flights.append(_to_dict(r))
+            except Exception as e:
+                logger.warning(f"Skipping unconvertible fli result: {e}")
+                continue
 
         return flights[:max_results]
 
@@ -113,6 +118,20 @@ def _run_fli_search(
     except Exception as e:
         logger.warning(f"fli search failed: {e}")
         raise FLISearchError(str(e)) from e
+
+
+def _json_default(obj: Any) -> Any:
+    """JSON fallback for non-serializable fli types (e.g. Airport enum).
+
+    fli returns airport codes as ``Airport`` enum members; ``json.dumps``
+    cannot serialize these, which crashed the search subprocess and broke
+    the entire primary data path. Coerce enums/objects to their str form.
+    """
+    if isinstance(obj, Enum):
+        return obj.value
+    if hasattr(obj, "__str__"):
+        return str(obj)
+    return repr(obj)
 
 
 def _to_dict(result: Any) -> dict:
@@ -130,10 +149,11 @@ def _to_dict(result: Any) -> dict:
     if not segments:
         segments = [{"flight": {}}]
 
+    price = result.price if result.price is not None else 0.0
     return {
         "validatingAirlineCodes": [result.primary_airline_name],
         "itineraries": [{"segments": segments}],
-        "price": {"total": f"{result.price:.2f}"},
+        "price": {"total": f"{price:.2f}"},
         "type": "One way",
         "total_duration": result.duration,
         "booking_url": "",
@@ -249,4 +269,4 @@ if __name__ == "__main__":
         print(json.dumps({"flights": [], "error": str(e)}))
         sys.exit(1)
 
-    print(json.dumps({"flights": _results}))
+    print(json.dumps({"flights": _results}, default=_json_default))

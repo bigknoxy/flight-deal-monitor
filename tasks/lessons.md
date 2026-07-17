@@ -1,53 +1,3 @@
-# Lessons Learned
-
-Failure modes, detection signals, and prevention rules captured during development.
-Review at session start and before major refactors.
-
----
-
-## Lesson 1: Test patch targets must move with extracted code
-
-**Failure mode**: Extracting functions from `scheduler_jobs.py` to new modules broke
-all test patches that targeted `app.scheduler_jobs.*` — Python resolves a function's
-free variables using the *defining module's* `__globals__`, so patches at the old
-module path no longer affect the moved code.
-
-**Detection signal**: Tests pass before extraction, fail after with "patch target not
-found" or "function not patched" errors.
-
-**Prevention rule**: When extracting code to a new module, grep for ALL patch targets
-and import references across the test suite FIRST. Update them in the same commit as
-the extraction. Use `grep -rn "app\.scheduler_jobs\._" tests/` as a checklist.
-
-**Reference**: `docs/plan-next-3.md` §3, `docs/MEMORY.md` "Architecture Extraction".
-
----
-
-## Lesson 2: Free functions over classes for mechanical extraction
-
-**Failure mode**: Wrapping extracted functions in classes (`ScannerService`,
-`AlertDispatcher`) requires rewriting call sites from `_scan_route(session, ...)`
-to `ScannerService(session).scan_route(...)`, which breaks test patches and
-increases diff scope.
-
-**Detection signal**: Plan says "extract to class" but tests patch the free function.
-
-**Prevention rule**: For pure mechanical extraction (no behavior change), keep
-module-level free functions. Only introduce classes when the extraction adds new
-behavior (state, lifecycle, dependency injection).
-
-**Reference**: `docs/MEMORY.md` "Architecture Extraction — Key constraint discovered".
-
----
-
-## Lesson 3: SQLite NTILE is coarse for small sample sizes
-
-**Failure mode**: Using `NTILE(100)` on a table with <100 rows produces buckets
-with 0-1 rows, making percentile queries unreliable for new routes.
-
-**Detection signal**: Learned baseline returns P25 = P50 because NTILE can't
-distinguish with <100 samples.
-
 **Prevention rule**: Use Python-side sorted-price + index-based percentile
 computation instead of SQL NTILE. This gives exact percentiles regardless of
 sample count. Only switch to SQL `PERCENTILE_CONT` when migrating to Postgres.
@@ -68,3 +18,47 @@ non-empty. Wrap `start_polling()` in try/except with a warning log. The bot is a
 best-effort feature, not a boot dependency.
 
 **Reference**: `docs/MEMORY.md` "Interactive Telegram Bot", `app/main.py` lifespan.
+
+---
+
+## Lesson 5: fli subprocess crashes on non-serializable + None price
+
+**Failure mode**: `app/scrapers/fli_client.py` printed `json.dumps(result)` from a
+fli subprocess. fli returns `arrival_airport` as an `Airport` **enum** (not str),
+so `json.dumps` raised `TypeError` and the subprocess died → every free search
+failed → fell through to paid providers (no keys) → **zero deals / empty dashboard**.
+Separately, `f"{result.price:.2f}"` raised `NoneType.__format__` when a result had
+`price=None`, killing whole-route conversion.
+
+**Detection signal**: `/deals` returns 0 deals but scheduler "runs"; subprocess
+exit non-zero in logs; UI empty despite healthy server.
+
+**Prevention rule**:
+- Pass `default=_json_default` to `json.dumps` (`_json_default` coerces `Enum`→`.value`).
+- Guard `price = result.price if result.price is not None else 0.0`.
+- Wrap per-result conversion in try/except so one bad result can't sink a route.
+- TDD these paths (enum arrival_airport, None price, zero price) — see
+  `tests/test_fli_client.py::TestFLIClientJsonDefault` + `TestFLIClientToDict`.
+
+**Reference**: `app/scanner.py::_scan_route` consumes fli via `run_in_executor`.
+
+---
+
+## Lesson 6: Google Flights deep links are dead — use Kayak
+
+**Failure mode**: Booking links built with Google `?q=` (or path `/flights/MCI-JFK/...`
+or hand-rolled `tfs=` protobuf) now 302 → `/unsupported`. Google deprecated ALL
+structured deep-linking in 2026. Even the user's own historical `tfs=` example link
+now redirects to `/unsupported`. Booking link showed wrong/empty destination+date.
+
+**Detection signal**: Book link opens Google "unsupported" page; destination/date
+not pre-filled.
+
+**Prevention rule**: Build booking links with **Kayak** path format
+`https://www.kayak.com/flights/{ORIG}-{DEST}/{departure}` (RT appends `/{return}`).
+Verified 200 + pre-fills fields. Skyscanner path format hits captcha (avoid).
+`booking_url` is a **persisted column** on `FlightDeal` — fixing the builder only
+helps future scans; backfill existing rows after a URL-format change.
+
+**Reference**: `app/scanner.py::_build_booking_url`; backfill via async
+`AsyncSessionLocal` (sync Session fails on the async engine).

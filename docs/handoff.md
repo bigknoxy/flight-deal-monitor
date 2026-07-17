@@ -4,7 +4,7 @@
 > whenever a significant change is made or a panel decision is recorded.**
 
 ## Last Updated
-2026-07-15 (panel fixes verified, all 7 items committed in single atomic commit)
+2026-07-16 (full panel audit — corrected 3 stale "deferred bug" claims; identified 1 true P0)
 
 ## Current Status
 
@@ -30,8 +30,8 @@
   - `app/job_lifecycle.py` (101L) — `_start_job_run`, `_complete_job_run`,
     `_fail_job_run`, `reconcile_stale_job_runs`, `RECONCILE_MAX_AGE_SECONDS`
   - `app/alert_dispatch.py` (100L) — `_send_deal_alert` fan-out to all notifiers
-  - `app/scanner.py` (297L) — `_scan_route`, `_build_google_flights_url`,
-    `FLI_TIMEOUT_SECONDS`
+  - `app/scanner.py` (297L) — `_scan_route`, `_build_booking_url` (Kayak deep link;
+    Google Flights deep-link params deprecated 2026), `FLI_TIMEOUT_SECONDS`
   - `scheduler_jobs.py` re-exports all moved names for backward-compat patch targets
   - Test patch targets updated: `conftest.py` → `app.alert_dispatch.acquire_alert_slot`;
     `test_long_weekend.py` → added `_complete_job_run`/`_fail_job_run` patches
@@ -74,16 +74,50 @@ All panel-identified items complete. Remaining backlog:
 3. **Add `UserDealInteraction` model** (viewed/clicked/booked/dismissed) (swyx)
 4. B8 `/metrics`, B15 README reconcile, B17-B20 (per-user model enhancements), B22-B25 (airport lookup / false-positive classifier / flywheel), B29 licensed-API primary
 
+### 2026-07-16 — UI empty-data investigation (ROOT CAUSE FOUND + FIXED)
+**Symptom**: Dashboard showed no deals despite scheduler running.
+**Root cause**: `app/scrapers/fli_client.py` — the primary (free) fli source's
+subprocess output crashed at `json.dumps()` because fli returns `arrival_airport`
+as an `Airport` **enum** (non-serializable). Every fli search failed → fell through
+to paid providers (no real keys) → zero deals recorded. A secondary crash:
+`f"{result.price:.2f}"` raised `NoneType.__format__` for results with `price=None`,
+killing whole-route conversion.
+**Fixes applied (uncommitted, in working tree)**:
+- `fli_client.py`: added `_json_default()` (coerces Enum→.value) used in the
+  subprocess `print(json.dumps(..., default=_json_default))`; guarded `None` price
+  → `0.0`; wrapped per-result `_to_dict()` in try/except so one bad result can't
+  kill a route. `ruff` clean.
+- Server restarted (detached via `/dev/shm/fdm_launch.sh`); verified `/deals` now
+  returns **122 deals**, `/health` 200, scheduler running.
+**Config gaps (NOT code bugs, need real credentials in `.env`)**:
+- `TELEGRAM_BOT_TOKEN` is placeholder `test_bot_token` → bot 404s (`/bot<token>`
+  URL format is correct; just needs a real token). Same for Slack/Discord webhooks
+  (test endpoints, 405/302). These are env-config, not code.
+- `SECRET_KEY` still insecure default `change-me-in-production` — set before any
+  real deploy (forgeable session cookies).
+**Next**: commit the two fli_client fixes; set real API credentials + SECRET_KEY.
+
 ## Latest Panel Decision
 
-**Topic**: APScheduler + SQLite job store production safety (dogfooding review)
-**Date**: 2026-07-15
-**Decision**: **APPROVED with caveats** — production-safe for single-instance deployment. WAL mode + circuit breaker + dedup retry + JobRun reconciliation address key risks. In-memory circuit breaker and SQLite scale considerations noted for multi-worker future.
-**Action items**: All closed — synchronous=NORMAL added, circuit breaker exposed on /health, MAX_ALERT_ATTEMPTS=5 for permanent failures, dead elif branches fixed.
+**Topic**: FULL AUDIT & REVIEW (production readiness, architecture, AI/ML, DX, business)
+**Date**: 2026-07-16
+**Decision**: **APPROVED for single-instance unattended deployment ONCE the bot polling
+watchdog (P0) lands.** Re-audit corrected three stale "deferred bug" claims:
+- `_escape_md` double-escape bug → FALSE POSITIVE (alert.py/bot.py escape only dynamic
+  values; Markdown built into literal — correct).
+- dead `elif` branches in scanner.py → FALSE (already fixed in prior sprint).
+- `booking_window_bucket` unconsumed → TRUE (written in price_analysis.py:128-134, never
+  filtered in calculate_percentile_baseline()).
+- Makefile "missing" → FALSE (Makefile exists).
+**True P0**: bot polling has NO watchdog — if `_poll_loop()` dies, nothing restarts it and
+the bot silently stops serving subscribers. Agreed by belshe + b0rk.
+**Action items**: P0 = bot watchdog (~S). P1 = consume booking_window_bucket (~S),
+reconcile README to wired notifiers (~S), document generate_route_id hash contract (~S).
+P2 = dynamic destinations, UserDealInteraction/classifier, /metrics, monetization, PG path.
 
 ## What a New Agent Needs to Know
 
-**All work is committed.** Working tree is clean. 1 atomic commit on main this session (`284a62e`).
+**Working tree is DIRTY (uncommitted) as of 2026-07-16**: bug fixes in `app/scrapers/fli_client.py`, `_build_booking_url` rename in `app/scanner.py`, new TDD tests, and docs updates are NOT yet committed. Commit before next session.
 
 **Architecture**: FastAPI + APScheduler + SQLModel. Sync `fli` wrapper runs in
 `run_in_executor()`. Fallback chain: fli → SearchAPI → Duffel. Auth via
@@ -132,27 +166,37 @@ All decisions land in `docs/panel-decisions.md`. This file is updated every sess
 
 ## Next Recommended Action
 
-**Immediate (highest leverage)** — balanced next sprint per panel guidance:
-1. **Fix `_escape_md` bug** — 4-line fix, ensures alerts render correctly on Telegram
-2. **Consume `booking_window_bucket`** in percentile baseline — 1-line filter, improves detection accuracy
-3. **Fix dead `elif` branches** in `scanner.py` — deferred twice, 4-line fix
-4. **Add Makefile** — deferred twice, 10-minute task
-5. **Add bot polling watchdog** — reliability hardening
-Then: dynamic destinations (product), extract `_scan_route()` internals (architecture), `UserDealInteraction` model (data)
+**Immediate (highest leverage)** — per 2026-07-16 full audit:
+1. **P0: Add bot polling watchdog** — check `_poll_task.done()` in a periodic task and
+   restart `_poll_loop()`; without this the bot silently dies (belshe/b0rk). ~S effort.
+2. **P1: Consume `booking_window_bucket`** in `calculate_percentile_baseline()` — 1-line
+   filter on `obs.booking_window_bucket`, improves detection accuracy (swyx/b0rk).
+3. **P1: Reconcile README** — it claims Slack/Discord/email notifiers not all wired;
+   state only Telegram + webhook notifiers actually exist (hanselman, B15).
+4. **P1: Document `generate_route_id()` hash contract** — changing airline/suffix
+   invalidates dedup silently; add code comment + test (b0rk).
+Then (P2): dynamic DB-backed destinations `/watch` (levelsio), `UserDealInteraction`
+model + false-positive classifier (swyx), `/metrics` (belshe), monetization (levelsio),
+PostgreSQL multi-instance path (belshe).
 
-## Live now (2026-07-13 → 2026-07-15)
+> NOTE: Three prior "deferred bugs" were FALSE POSITIVES (verified 2026-07-16 against
+> source): `_escape_md` double-escape, dead `elif` in scanner.py, and missing Makefile.
+> Do NOT spend time "fixing" these — they are already correct/resolved.
 
-- Dev server running on **`:8787`** (`/dev/shm` SQLite). Login open (fresh DB) → register at `/auth/register`.
-- **Reliability sprint live**: fli subprocess isolation, SECRET_KEY fail-fast, JobRun reconciliation, `/health` → 503, `start_period: 60s`.
-- **Architecture extraction live**: `scheduler_jobs.py` slimmed to ~175L, 3 new focused modules.
-- **Learned baselines live**: `calculate_percentile_baseline()` + `detect_deal_learned()` wired into `_scan_route()`.
-- **Telegram bot live**: `@FlightDealBot` starts polling on boot, subscribes users via `/subscribe`, fans out deals via `send_alert_to_subscribers()`.
-- **UI/UX QA sprint (2026-07-15)**: agent-browser drove the full dashboard flow end-to-end. Two issues fixed and verified:
-  - **Finding #1 — sidebar on auth pages**: `base.html` now skips the sidebar block when `no_sidebar=true`; `auth_form.html` sets it. CSS adds `body.auth-page .main-content { margin-left: 0; }`. Result: `/auth/login` and `/auth/register` show only the auth card on a clean page.
-  - **Finding #2 — raw ISO `next_run` in jobs table**: `app/scheduler.py::get_scheduler_status()` now returns both `next_run` (ISO, for API consumers) and `next_run_display` (human-readable local time, e.g. `2026-07-15 00:06` in America/Chicago). Dashboard template renders the display version with the ISO in a muted tooltip-style span.
-  - Verified: 384/385 tests pass (1 skip), ruff clean on all touched Python.
-  - See `.qa-screenshots/` for before/after captures (login `#11`, dashboard `#12`).
-  - Open items deferred to next session: bot `_escape_md` double-escape, scanner dead `elif` branches, `booking_window_bucket` consumption, Makefile (per panel-decisions.md backlog).
+## Live now (2026-07-16)
+
+- Dev server running on **`:8787`** (`/dev/shm` SQLite). Login open → register at `/auth/register`.
+- **Bug-fix + TDD sprint (2026-07-16)**:
+  - **UI empty-data root cause — 2 bugs in `app/scrapers/fli_client.py`, FIXED**:
+    1. fli returned `arrival_airport` as an `Airport` **enum**; `json.dumps()` in the subprocess crashed → every free search failed → fell through to paid providers (no keys) → zero deals. Added `_json_default()` (Enum→.value) + `from enum import Enum`; used in `json.dumps(default=...)`.
+    2. `f"{result.price:.2f}"` raised `NoneType.__format__` when `price=None`, killing whole-route conversion. Guarded `price = result.price if result.price is not None else 0.0`; wrapped per-result `_to_dict()` in try/except so one bad result can't sink a route.
+    - Result: `/deals` now returns 986 live deals (was 0). ruff clean.
+  - **Booking link fix**: `_build_google_flights_url` (dead Google `?q=` format) replaced by `_build_booking_url` → **Kayak** path format `https://www.kayak.com/flights/MCI-JFK/2026-09-10` (RT appends `/return_date`). VERIFIED: Google deprecated **all** deep-link params in 2026 — every `q=`, path `/flights/MCI-JFK/...`, and hand-rolled `tfs=` variant 302s to `/unsupported` (the user's own example link now also 404s). Kayak path format returns 200 and pre-fills origin/dest/dates. Skyscanner path format hits captcha (unusable).
+    - Backfilled all 986 existing `FlightDeal.booking_url` rows to Kayak via async script. Live `/deals` now serves `kayak.com/flights/...` links.
+  - **TDD**: added 6 Kayak URL-builder tests (replacing 4 dead `?q=` tests) in `test_scheduler_jobs_extended.py`; added `TestFLIClientJsonDefault` + 3 `_to_dict` regression tests (enum arrival_airport, None price→0.00, zero price) in `test_fli_client.py`. 38 relevant tests pass; full suite 415 passed / 1 pre-existing fail (test_alembic — `alembic` not installed; opt-in).
+- **Prior sprints still live**: reliability hardening, architecture extraction, learned baselines, Telegram bot, UI/UX QA fixes.
+
+> NOTE: The 2026-07-15 deferred "open items" (bot `_escape_md` double-escape, scanner dead `elif`, Makefile) were verified FALSE POSITIVES by the 2026-07-16 panel re-review — do NOT "fix" them. Only `booking_window_bucket` consumption remains a real P1.
 
 ## Previous sprints (archived)
 

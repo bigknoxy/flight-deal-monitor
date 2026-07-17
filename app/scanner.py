@@ -60,7 +60,7 @@ def _extract_stopover_airports(flight: dict, destination: str) -> list[str]:
     return via_airports
 
 
-def _build_google_flights_url(
+def _build_booking_url(
     origin: str,
     destination: str,
     departure_date: str,
@@ -68,22 +68,27 @@ def _build_google_flights_url(
     airline: str = "",
     via_airports: list[str] | None = None,
 ) -> str:
-    """Build a Google Flights search URL.
+    """Build a flight-search deep link that reliably pre-fills origin,
+    destination and dates.
 
-    The link always opens a ROUND-TRIP search so the user can compare against
-    Google Flights' round-trip number in one tap.  The price we display is
-    one-way (fli only returns one-way fares).
+    Google Flights deprecated every query-string / path deep-link format
+    (all ``q=`` and hand-rolled ``tfs=`` variants now 302 to ``/unsupported``),
+    so we use Kayak's path-based format ``/flights/MCI-JFK/YYYY-MM-DD`` which
+    still fills the fields and returns HTTP 200.
 
-    Args:
-        via_airports: Optional list of stopover airport codes to include in URL.
+    The link always opens a ROUND-TRIP search when a return date is known so
+    the user can compare against Google's round-trip fare in one tap.  The
+    price we display is one-way (fli only returns one-way fares).
     """
-    q = f"Flights to {destination} from {origin} on {departure_date}"
+    origin = origin.strip().upper()
+    destination = destination.strip().upper()
+    segments = f"/{origin}-{destination}/{departure_date}"
     if return_date:
-        q += f" return on {return_date}"
-    if via_airports:
-        for via in via_airports:
-            q += f" via {via}"
-    return f"https://www.google.com/travel/flights?q={quote(q)}"
+        segments += f"/{return_date}"
+    url = f"https://www.kayak.com/flights{segments}"
+    if airline:
+        url += f"?sort=price&a={quote(airline.strip().upper())}"
+    return url
 
 
 async def _scan_route(
@@ -228,7 +233,7 @@ async def _scan_route(
             )
             price = float(flight.get("price", {}).get("total", 0))
             via_airports = _extract_stopover_airports(flight, destination)
-            booking_url = _build_google_flights_url(
+            booking_url = _build_booking_url(
                 origin, destination, departure_date, return_date, airline, via_airports
             )
 

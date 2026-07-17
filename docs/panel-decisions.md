@@ -5,6 +5,65 @@ Decisions are immutable once recorded — if context changes, start a new entry.
 
 ---
 
+## 2026-07-16 22:30 — UI & product-sync panel review
+
+**Topic**: Panel review focused on UI + product-sync. User: "do a panel review and
+also include a review of the UI ... make sure it stays in sync with the product."
+Subagents unavailable (model not found) → moderator applied 5 lenses directly to
+templates, README, and the (b3) booking-link fix.
+
+**Context**: (b3) replaced the dead Google `?q=` booking link with Kayak path format.
+The UI and README were NOT updated — they still said "Google". This review's job was
+to find and fix that drift + audit the dashboard UX.
+
+### Findings (product-sync drift — the headline issue)
+| Location | Stale text | Fixed to |
+|---|---|---|
+| `dashboard/index.html:88` | `1-way · RT on Google` | `1-way · RT on Kayak` |
+| `partials/deal_row.html:11` | `1-way · RT on Google` | `1-way · RT on Kayak` |
+| `partials/deal_table.html:1-5` | "round-trip Google Flights search" | "round-trip Kayak search" |
+| `README.md:328` | `"url": "https://www.google.com/travel/flights?..."` | `"url": "https://www.kayak.com/flights/MCI-LHR/2024-06-01"` |
+| `README.md:133,159,453` | Settings = "Read-only config display" | "Editable config form (saves to DB)" |
+| `README.md:143` | "HTMX-powered infinite scroll" | "HTMX-powered 'Load More' pagination button" |
+| `tests/test_round_trip.py:330` | `1-way · RT on Google` | `1-way · RT on Kayak` |
+| `tests/test_fli_integration.py:60` | asserts Google `?q=` URL | asserts Kayak host or empty |
+
+README "Google Flights" references on lines 48/60/71/167/168/626/693/694 describe the
+**data source** (fli scrapes Google Flights *pricing*) — ACCURATE, left unchanged.
+
+### Lens verdicts
+- **hanselman (DX)**: Stale Settings docs ("read-only") is a real trap — a dev believes
+  Settings is inert and hand-edits YAML, clobbering UI saves. Fixed. "infinite scroll"
+  mislabel sends devs hunting for a non-existent IntersectionObserver. Fixed.
+- **levelsio (business)**: The "1-way · RT on Google" label was a **trust-lie** — the
+  single most-clicked element sent users to Kayak expecting Google. Relabeled. Booking
+  link is the only monetization-adjacent surface; switching to Kayak is fine *if labeled*.
+- **belshe (reliability)**: Product-sync staleness = silent user-facing copy corruption.
+  No crash, but every Telegram/email alert said "Google" while linking Kayak → support
+  load. **Added sync-guard test** (`test_booking_url_host_matches_ui_label`) so a future
+  provider switch fails the build instead of drifting silently.
+- **swyx (defensibility)**: Nothing proprietary in UI; moat is learned baselines (built).
+  Kayak path format is undocumented (like Google was) → recommend a **link-health smoke
+  test** that alerts if the URL 302s. Added to backlog.
+- **b0rk (fragility)**: `booking_url` is persisted (Lesson 6) — backfilled in (b3). But the
+  UI label is a **literal string**, not derived from the link host → drifts again on next
+  switch. Recommended single-source-of-truth (derive label from builder config). Added
+  test as interim guard.
+
+### Verdict
+**APPROVED to deploy** after the product-sync doc/label fixes (done). P0 for this review
+= relabel Google→Kayak in UI + README (DONE). P1 backlog: (1) single-source-of-truth for
+booking-label/host, (2) Kayak link-health smoke test alerting on 302, (3) `booking_window_bucket`
+consumption (carried from prior panel).
+
+### Verification
+- ruff clean on touched Python; 36 tests in `test_scheduler_jobs_extended.py` +
+  `test_round_trip.py` pass (incl. new sync-guard).
+- Server relaunched on `:8787`; `/health`=200; templates serve Kayak labels.
+- Working tree DIRTY (uncommitted) — commit before next session.
+
+---
+
 ## 2026-07-11 00:00 — Initial panel formation
 
 **Panelists**: levelsio, hanselman, belshe, swyx, b0rk
@@ -158,9 +217,10 @@ We had just labeled prices `1-way` in the UI and made booking links one-way.
    free. Adding round-trip to *every* sweep burns paid quota (SearchAPI/Amadeus/Duffel) on
    pairs nobody looks at. Round-trip is enrichment, never a deal-detection input.
 
-2. **Kill 90% of the confusion for $0: make every deal a deep link to a ROUND-TRIP Google
-   Flights search** (`_build_google_flights_url` already exists). One tap → real RT number.
-   levelsio: reframe the label (`1-way · RT on Google`), don't add data.
+ 2. **Kill 90% of the confusion for $0: make every deal a deep link to a ROUND-TRIP flight
+    search** (now `_build_booking_url`, Kayak path format — Google Flights deprecated all
+    deep-link params in 2026 and 302s to `/unsupported`). One tap → real RT number.
+    levelsio: reframe the label (`1-way · RT on Kayak`), don't add data.
 
 3. **Lazy, on-demand round-trip enrichment ONLY on a confirmed one-way deal** (1 paid call per
    genuine alert, not per sweep). Gated by new `round_trip_enrichment: bool = False`. Cached
@@ -180,11 +240,11 @@ We had just labeled prices `1-way` in the UI and made booking links one-way.
    one-way price ⇒ down-rank). Budget a little paid quota to seed RT baselines for top-N
    routes as CapEx on moat, not cost to minimize.
 
-6. **hanselman DX:** fix the existing long-weekend mislabel — `fli` ignores `return_date`
-   (always one-way) yet `_build_google_flights_url` flips to a ROUND-TRIP Google link when
-   `return_date` is set. Long-weekend deals currently show one-way price + RT link. Make the
-   link always match the headline number. Add per-row provenance (`source: fli (one-way)` /
-   `source: SearchAPI (RT est.)`) + `data_age_minutes` instead of a footnote.
+ 6. **hanselman DX:** fix the existing long-weekend mislabel — `fli` ignores `return_date`
+    (always one-way) yet `_build_booking_url` flips to a ROUND-TRIP Kayak link when
+    `return_date` is set. Long-weekend deals currently show one-way price + RT link. Make the
+    link always match the headline number. Add per-row provenance (`source: fli (one-way)` /
+    `source: SearchAPI (RT est.)`) + `data_age_minutes` instead of a footnote.
 
 **Recommended implementation (2 tiers):**
 - **Tier 1 (free, now):** add `trip_type` column (default `one_way`); flip deal booking link
@@ -1172,3 +1232,116 @@ The APScheduler + SQLite setup is **production-safe for the current scale** (sin
 ## Latest Panel Decision Summary
 
 **Overall Status**: All panel-identified fixes from 2026-07-13 have been implemented, tested (391 tests pass), and verified. The codebase is in a stable, production-ready state for single-instance deployment.
+
+---
+
+## 2026-07-16 00:00 — FULL AUDIT & REVIEW (re-convene panel)
+
+**Panelists**: levelsio, hanselman, belshe, swyx, b0rk (all 5 lenses applied; subagent
+routing unavailable this session — moderator applied each lens directly to source).
+**Topic**: Full audit of flight-deal-monitor production readiness, architecture
+fragility, AI/ML strategy, dev-DX/self-hosting, and business model — including the
+open backlog and historically "deferred" fixes, re-verified against actual source.
+
+### Evidence collected (this session, against live source)
+- `app/scanner.py` (324L) — `_scan_route()` fallback chain fli→SearchAPI→Amadeus→Duffel,
+  `FLI_TIMEOUT_SECONDS=30` waiter, percentile baseline wired in. **No dead `elif`
+  branches present** — the handoff's claimed "dead elif in scanner.py" was ALREADY FIXED.
+- `app/alert.py` + `app/bot.py` — `_escape_md()` escapes ONLY dynamic values; Markdown
+  formatting (`*bold*`, `[link](url)`) is built into the literal template. **This is
+  correct — the claimed `_escape_md` double-escape bug is a FALSE POSITIVE / already
+  resolved.** No double-escaping occurs.
+- `app/models/flight.py:107` `booking_window_bucket` — **WRITTEN** in
+  `price_analysis.py:128-134` on `PriceObservation` but **NEVER CONSUMED** in
+  `calculate_percentile_baseline()` (no filter on it). Real deferred gap remains.
+- `app/bot.py` — `_poll_task` created in `start_polling()`; only `_running` flag + manual
+  `cancel()`. **NO watchdog**: if `_poll_loop()` dies (uncaught exception), nothing
+  restarts it → bot silently stops receiving commands/subscriber alerts.
+- `Makefile` — **EXISTS** (handoff "deferred Makefile" was stale).
+- `README.md` — present, claims "Telegram, email, Slack, Discord" but only Telegram +
+  webhook notifiers are wired; thresholds stated match `config/app.yaml`.
+
+### Per-expert assessment
+
+**levelsio (PMF / business)**
+- (a) Top risks: destinations are hardcoded (MCI × 19) — no self-serve watch; monetization
+  absent; no real user yet (dogfood only).
+- (b) Ready: alert pipeline + Telegram bot UX is genuinely usable. Not ready: product
+  surface for non-devs.
+- (c) Recs: S — ship to 5 real travel-hacker friends with hardcoded routes; M — dynamic
+  DB-backed `/watch ORIGIN DEST` (open backlog); M — per-user filters already exist,
+  expose them in onboarding; L — monetization (freemium: free 1 home airport, paid multi).
+- (d) Verdict: compelling for the builder + a few friends NOW; not a "product" until
+  destinations are self-serve. Smallest compelling step = let users add their own routes.
+
+**hanselman (DX / self-hosting)**
+- (a) Top risks: README over-claims channels (Slack/Discord/email mentioned, not all
+  wired); test invocation is non-obvious (`scripts/run_pytest.py` + env vars, NOT plain
+  `pytest`); secrets setup friction.
+- (b) Ready: `cp .env.example`, `python -m app.main`, Docker compose. Not ready: README
+  accuracy; first-run test experience.
+- (c) Recs: S — reconcile README to actually-wired notifiers (backlog B15); S — Makefile
+  already exists, add `make test`/`make dev`/`make lint` targets; M — one-command
+  `make setup` that does install+env+test; S — note test-runner caveat in README.
+- (d) Verdict: a moderately technical user CAN self-host in ~15 min. Blocker = README trust
+  (over-claim) + finding the right test command.
+
+**belshe (reliability / prod)**
+- (a) Ranked risks: **P0** bot polling has no watchdog (silent death); circuit breaker is
+  in-memory (dies on restart, won't coordinate across workers); SQLite + single writer =
+  unsafe for multi-instance; no `/metrics` (B8) for alerting on anomalies.
+- (b) Ready (single-instance, unattended): mostly — sweeps, reconciliation, /health 503,
+  error-alert budget all present. Not ready: multi-worker; observability.
+- (c) Recs: S — bot watchdog (check `_poll_task.done()`, restart); S/M — persist circuit
+  breaker state or accept single-instance-only; M — `/metrics` endpoint (B8); L —
+  PostgreSQL path for multi-instance.
+- (d) Verdict: SAFE to run unattended single-instance. What pages you at 3am: bot silently
+  dying (no watchdog) + a fli outage you can't see without logs.
+
+**swyx (AI/ML / defensibility)**
+- (a) Risks: percentile logic is trivially copyable (no moat); no feedback loop to learn
+  false-positives; `booking_window_bucket` collected but unused (wasted signal).
+- (b) Defensible: the accumulated `PriceObservation` history IS the asset — but only if
+  fed back. Easily copied: the detection math.
+- (c) Recs: S — consume `booking_window_bucket` in percentile baseline (backlog gap); M —
+  `UserDealInteraction` model (viewed/clicked/booked/dismissed) → false-positive
+  classifier (B17-B25); L — flywheel: better signal → better deals → more users → more
+  observations. Verdict on ML-now: NOT needed; simple percentiles are the right v1.
+- (d) Verdict: percentile foundation is sound. Highest-leverage data investment =
+  close the feedback loop (interactions + booking window filter).
+
+**b0rk (architecture / fragility)**
+- (a) Implicit contracts that bite: `generate_route_id()` hash includes airline+suffix
+  (changing either invalidates dedup — silent re-alerts); `_start/_complete/_fail_job_run`
+  each open their own session (caller's session not reused); fli is sync-in-executor
+  (one wedged upstream could stall sweep — mitigated by FLI_TIMEOUT).
+- (b) Sound: module extraction (scanner/job_lifecycle/alert_dispatch) is clean; dedup +
+  cache layering correct. Fragile: bot watchdog gap; untelemetered paid-provider spend.
+- (c) Recs ranked by blast radius: **P0** bot watchdog (silent user-facing failure);
+  **P1** consume `booking_window_bucket` (accuracy, 1-line filter); **P1** document the
+  `generate_route_id` hash contract (code comment + test); **P2** Makefile targets (done).
+- (d) Verdict: decomposition is healthy. Only genuinely P0 fragility = bot watchdog.
+
+### Cross-cutting synthesis
+- The three "deferred bugs" from prior handoff are **two false positives + one real**:
+  `_escape_md` double-escape = FALSE; dead elif in scanner = FALSE (fixed);
+  `booking_window_bucket` unconsumed = TRUE (real, low-effort).
+- **One true P0 across all lenses: bot polling watchdog** (belshe + b0rk agree). Everything
+  else is P1/P2 and product-evolution, not deploy-blockers.
+- System is **APPROVED for single-instance self-hosted deployment** with the watchdog as
+  the only must-fix-before-unattended item.
+
+### Prioritized action list
+- **P0 (do first)**: Add bot polling watchdog — restart `_poll_task` if `.done()`
+  (belshe/b0rk, ~S).
+- **P1**: Consume `booking_window_bucket` in `calculate_percentile_baseline()` filter
+  (swyx/b0rk, ~S). Reconcile README to wired notifiers (hanselman, ~S). Document
+  `generate_route_id` hash contract (b0rk, ~S).
+- **P2 (product evolution)**: Dynamic DB-backed destinations `/watch` (levelsio, ~M);
+  `UserDealInteraction` + false-positive classifier (swyx, ~M-L); `/metrics` (belshe, ~M);
+  monetization (levelsio, ~L); PostgreSQL multi-instance path (belshe, ~L).
+
+### Verdict
+**APPROVED for single-instance unattended deployment once the bot watchdog (P0) lands.**
+All other items are enhancements, not blockers. Prior panel fixes (commit 284a62e) remain
+valid; this audit corrects three stale "deferred bug" claims in handoff.md.

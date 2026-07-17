@@ -56,9 +56,10 @@ class TestFLIClientIntegration:
         )
         assert len(flights) > 0
         for flight in flights:
+            # The primary fli path returns an empty booking_url; the scheduler
+            # builds the Kayak deep link via app.scanner._build_booking_url.
             url = flight.get("booking_url", "")
-            assert url.startswith("https://www.google.com/travel/flights?q=")
-            assert len(url) > len("https://www.google.com/travel/flights?q=")
+            assert url == "" or url.startswith("https://www.kayak.com/flights/")
 
     async def test_invalid_airport_codes_return_empty(
         self, client: FLIClient,

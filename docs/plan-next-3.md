@@ -192,7 +192,7 @@ This makes deal detection seasonal (December MCI→LHR has a different baseline 
 | Sweep orchestration | ~120 | `run_regular_sweep`, `run_mistake_sweep`, `run_long_weekend_sweep`, `run_cleanup` |
 | Route scanning | ~200 | `_scan_route` (the big one) |
 | Alert dispatch | ~80 | `_send_deal_alert` |
-| URL building | ~20 | `_build_google_flights_url` |
+| URL building | ~20 | `_build_booking_url` (Kayak deep link) |
 | Fli timeout constant | ~5 | `FLI_TIMEOUT_SECONDS` |
 
 Health complexity scores: `_scan_route` w=74.0, `run_mistake_sweep` w=23.0, `_send_deal_alert` w=18.0.
@@ -222,7 +222,7 @@ class ScannerService:
 ```
 
 Also move:
-- `_build_google_flights_url()` → `scanner.py` (private method)
+- `_build_booking_url()` → `scanner.py` (private method)
 - `FLI_TIMEOUT_SECONDS` → `scanner.py`
 - The cache check, fli subprocess call, circuit-breaker-gated fallback chain, flight parsing, deal detection, price observation recording — all move into `ScannerService.scan_route()`
 
@@ -270,7 +270,7 @@ After extraction, this file contains ONLY:
 
 #### Step 3: Extract `scanner.py`
 - Move `_scan_route` body to `ScannerService.scan_route()`
-- Move `_build_google_flights_url`, `FLI_TIMEOUT_SECONDS`
+- Move `_build_booking_url`, `FLI_TIMEOUT_SECONDS`
 - Update `scheduler_jobs.py` to instantiate `ScannerService(session)` and call `.scan_route()`
 - This is the riskiest extraction (200 lines of logic) — run full test suite
 
