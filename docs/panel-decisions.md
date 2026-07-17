@@ -5,6 +5,66 @@ Decisions are immutable once recorded — if context changes, start a new entry.
 
 ---
 
+## 2026-07-16 23:30 — Re-review of committed booking-link fix (eee3fbb)
+
+**Trigger**: User: "run full panel re-review" after committing `eee3fbb` (fli
+enum/None-price crashes + Kayak switch + product-sync label fixes). Goal: confirm
+the b4 product-sync fixes hold post-commit, check for regressions, re-audit the 3
+P1 backlog items carried from the UI review.
+
+**Verified state**:
+- Commit `eee3fbb` on `main` (14 files, 449 insertions/144 deletions), working
+  tree clean.
+- Target tests: **51 passed, 6 skipped**. No flakes.
+- Pre-existing test warning at `price_analysis.py:139` (`coroutine never awaited`)
+  is a *test-mock artifact* (AsyncMock `session.add_all`) — NOT a production bug;
+  `add_all` is sync on real `AsyncSession`. Left as-is, noted for CI-noise cleanup.
+- Live server `:8787` serves Kayak labels + 986 backfilled Kayak `booking_url` rows.
+
+### Lens verdicts (5 lenses)
+- **levelsio (PMF) — 7/10 (unchanged)**: Kayak relabel closes the trust-lie (most-
+  clicked element now matches destination). Booking link is the only monetization-
+  adjacent surface; Kayak defensible *if labeled*. No PMF change, no regressions.
+- **hanselman (DX) — 7.5/10 (unchanged)**: Atomic, well-described commit. README
+  Settings "read-only"→"editable" fix prevents the YAML-clobber footgun. Nit: the
+  `add_all` AsyncMock warning is CI noise — recommend a `spec=AsyncSession`/sync
+  mock in that one test. Minor.
+- **belshe (Reliability) — 8/10 (unchanged)**: Product-sync staleness was a silent
+  user-facing corruption (alerts said "Google", linked Kayak). `test_booking_url_
+  host_matches_ui_label` now fails the build on future drift = correct shift-left
+  control. Backfill done. No new silent-failure modes.
+- **swyx (Defensibility) — 6/10 (unchanged)**: `calculate_percentile_baseline()`
+  (`price_analysis.py:209`) STILL filters only by `departure_month`, ignoring
+  `booking_window_bucket` — P1 still OPEN. Pre-computed bucket (lines 127-134)
+  remains unconsumed. Recommend scoping the percentile query by bucket so near-term
+  departures don't mis-score against 6-month-out baselines (~10 lines).
+- **b0rk (Fragility) — 7/10 (unchanged)**: Booking-label is STILL a literal string
+  (`1-way · RT on Kayak`) in `deal_row.html:11` + `dashboard/index.html:88`, not
+  derived from the link host. Single-source-of-truth (derive from `_build_booking_
+  url` config) still OPEN; the guard test is interim. No Kayak link-health smoke
+  test yet — would 302-alert if Kayak deprecates the path (exactly what bit Google).
+
+### P1 backlog re-check (carried from UI review)
+| Item | Status | Lens |
+|---|---|---|
+| Single-source-of-truth booking label | **OPEN** — literal string in 2 templates; guard test interim | b0rk |
+| Kayak link-health smoke test (alert on 302) | **OPEN** — undocumented path, no monitor | swyx/b0rk |
+| `booking_window_bucket` consumption in `calculate_percentile_baseline()` | **OPEN** — query filters by month only (line 234) | swyx |
+
+### Verdict
+**APPROVED — committed work is correct, verified, no regression.** 3 P1 items are
+genuine follow-ups, not blockers. Kayak switch + product-sync relabel done + guarded.
+
+**Recommended next (smallest-leverage-first)**:
+1. `calculate_percentile_baseline()` — add `.where(booking_window_bucket == bucket)`
+   so near-term deals don't mis-score vs far-out baselines (swyx P1, ~10 lines).
+2. Derive trip-tag label from a single `BOOKING_PROVIDER` constant consumed by both
+   `_build_booking_url` and the templates (kills the drift class permanently).
+3. Add `tests/test_kayak_link_health.py` asserting Kayak URL returns 200 (CI-skipped
+   like fli integration test) so a future deprecation fails loud.
+
+---
+
 ## 2026-07-16 22:30 — UI & product-sync panel review
 
 **Topic**: Panel review focused on UI + product-sync. User: "do a panel review and

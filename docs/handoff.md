@@ -4,25 +4,25 @@
 > whenever a significant change is made or a panel decision is recorded.**
 
 ## Last Updated
-2026-07-16 (full panel audit — corrected 3 stale "deferred bug" claims; identified 1 true P0)
+2026-07-16 23:30 (full panel re-review of committed booking-link fix `eee3fbb`; 3 P1s confirmed open)
 
 ## Current Status
 
 | Area | Status |
 |---|---|
-| Tests | 391 passing, 0 failed, 8 warnings (green) |
+| Tests | 416 passing, 1 deselected (pre-existing `test_alembic` — `alembic` not installed, opt-in) |
 | Lint | `ruff check app/ tests/` clean (exit 0) |
 | CI | Green on main (lint → test → Docker build) |
 | Open PRs | None |
 | Open Issues | None |
 | AGENTS.md | Updated |
 | Panel system | Validated — all panel fixes complete |
-| Git state | Clean working tree, 1 atomic commit on main (`284a62e`) |
+| Git state | Clean working tree, latest commit on main (`eee3fbb`) |
 
 ### Commit log (this session)
 | # | Hash | Summary |
 |---|---|---|
-| 1 | `284a62e` | feat: complete panel-identified fixes - escape ordering, unsubroute, sqlite pragma, circuit breaker /health, dedup max attempts, observed_at features |
+| 1 | `eee3fbb` | fix: fli enum/None-price crashes + switch booking links to Kayak (relabel UI/README, TDD, backfill 986 rows) |
 
 ### Completed this sprint
 - **Rec 3: Architecture extraction — DONE + VERIFIED**
@@ -82,13 +82,13 @@ as an `Airport` **enum** (non-serializable). Every fli search failed → fell th
 to paid providers (no real keys) → zero deals recorded. A secondary crash:
 `f"{result.price:.2f}"` raised `NoneType.__format__` for results with `price=None`,
 killing whole-route conversion.
-**Fixes applied (uncommitted, in working tree)**:
+**Fixes applied + COMMITTED (`eee3fbb`)**:
 - `fli_client.py`: added `_json_default()` (coerces Enum→.value) used in the
   subprocess `print(json.dumps(..., default=_json_default))`; guarded `None` price
   → `0.0`; wrapped per-result `_to_dict()` in try/except so one bad result can't
   kill a route. `ruff` clean.
 - Server restarted (detached via `/dev/shm/fdm_launch.sh`); verified `/deals` now
-  returns **122 deals**, `/health` 200, scheduler running.
+  returns **986 deals** (was 0), `/health` 200, scheduler running.
 **Config gaps (NOT code bugs, need real credentials in `.env`)**:
 - `TELEGRAM_BOT_TOKEN` is placeholder `test_bot_token` → bot 404s (`/bot<token>`
   URL format is correct; just needs a real token). Same for Slack/Discord webhooks
@@ -115,9 +115,29 @@ the bot silently stops serving subscribers. Agreed by belshe + b0rk.
 reconcile README to wired notifiers (~S), document generate_route_id hash contract (~S).
 P2 = dynamic destinations, UserDealInteraction/classifier, /metrics, monetization, PG path.
 
+## Latest Panel Re-Review (2026-07-16 23:30)
+
+Re-audit of committed `eee3fbb` (5 lenses). **Verdict: APPROVED — correct, verified,
+no regression.** All 5 panel scores unchanged (PMF 7, DX 7.5, Reliability 8, Moat 6,
+Architecture 7). The 3 P1 backlog items from the UI review are still OPEN (see "What
+a New Agent Needs" above). Pre-existing test warning at `price_analysis.py:139` is a
+mock artifact, not a prod bug. Full entry in `docs/panel-decisions.md`
+(2026-07-16 23:30).
+
 ## What a New Agent Needs to Know
 
-**Working tree is DIRTY (uncommitted) as of 2026-07-16**: bug fixes in `app/scrapers/fli_client.py`, `_build_booking_url` rename in `app/scanner.py`, new TDD tests, and docs updates are NOT yet committed. Commit before next session.
+**Working tree is CLEAN as of 2026-07-16 23:30**: all bug fixes, the Kayak
+booking-link switch, UI/README relabel, new TDD tests, and re-review docs are
+committed in `eee3fbb`. No uncommitted work.
+
+**Open P1s (from 2026-07-16 re-review, NOT blockers)**:
+1. `calculate_percentile_baseline()` does not filter by `booking_window_bucket`
+   (price_analysis.py:234 scopes by `departure_month` only) — near-term deals can
+   mis-score vs far-out baselines.
+2. Booking-label is a literal string in 2 templates (not derived from the link
+   host) — single-source-of-truth not yet done; guard test is interim only.
+3. No Kayak link-health smoke test — would not catch a future Kayak deprecation
+   (exactly what broke Google).
 
 **Architecture**: FastAPI + APScheduler + SQLModel. Sync `fli` wrapper runs in
 `run_in_executor()`. Fallback chain: fli → SearchAPI → Duffel. Auth via
