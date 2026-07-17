@@ -8,7 +8,6 @@ the one-way baseline), cache hit, phantom suppression, return_date wiring in
 the paid clients, and the UI rendering.
 """
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
