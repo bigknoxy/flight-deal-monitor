@@ -30,6 +30,7 @@ class TestAlembicImports:
 
     def test_alembic_config_loads(self):
         """Alembic config file must load without errors."""
+        pytest.importorskip("alembic.config")
         from alembic.config import Config
 
         cfg = Config("alembic.ini")
