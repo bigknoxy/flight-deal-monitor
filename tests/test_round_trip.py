@@ -310,6 +310,8 @@ async def test_duffel_round_trip_param():
 def test_ui_shows_rt_when_present():
     from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+    from app.config import BOOKING_PROVIDER_NAME
+
     env = Environment(
         loader=FileSystemLoader("app/templates"),
         autoescape=select_autoescape(),
@@ -318,12 +320,12 @@ def test_ui_shows_rt_when_present():
     deal = _make_deal()
     deal.round_trip_price_usd = 400.0
     deal.rt_source = "SearchAPI"
-    out = t.render(deal=deal)
+    out = t.render(deal=deal, booking_provider=BOOKING_PROVIDER_NAME)
     assert "RT" in out
     assert "SearchAPI" in out
     assert "one-way" in out
 
     deal2 = _make_deal()
     deal2.round_trip_price_usd = None
-    out2 = t.render(deal=deal2)
-    assert "1-way · RT on Kayak" in out2
+    out2 = t.render(deal=deal2, booking_provider=BOOKING_PROVIDER_NAME)
+    assert f"1-way · RT on {BOOKING_PROVIDER_NAME}" in out2

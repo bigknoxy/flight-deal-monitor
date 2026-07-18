@@ -21,6 +21,7 @@ from app.scrapers.fli_client import FLIClient
 from app.utils.circuit_breaker import circuit_breaker
 from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
 from app.utils.price_analysis import (
+    booking_window_bucket,
     calculate_median_price,
     calculate_percentile_baseline,
     calculate_price_drop,
@@ -217,6 +218,9 @@ async def _scan_route(
     percentiles = await calculate_percentile_baseline(
         session, origin, destination, departure_date,
         min_samples=config.app.min_baseline_samples,
+        booking_window_bucket=booking_window_bucket(
+            (datetime.strptime(departure_date, "%Y-%m-%d") - datetime.utcnow()).days
+        ),
     )
 
     seen_airlines: set[str] = set()

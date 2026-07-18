@@ -10,6 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import config
 from app.models.flight import FlightDeal, PriceObservation
 
+# Booking-window buckets: days between "now" and departure when the price was
+# observed / searched. A 2-day-out fare should not inform a 60-day-out baseline.
+BOOKING_WINDOW_BUCKETS = ("0-7d", "8-21d", "22-60d", "61+d")
+
+
+def booking_window_bucket(days_until: int) -> str:
+    """Map days-until-departure to a coarse booking-window bucket."""
+    if days_until <= 7:
+        return "0-7d"
+    if days_until <= 21:
+        return "8-21d"
+    if days_until <= 60:
+        return "22-60d"
+    return "61+d"
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -124,14 +140,7 @@ async def record_price_observations(
             obs.departure_day_of_week = dep_dt.weekday()
             obs.observed_at_month = now.month
             obs.observed_at_day_of_week = now.weekday()
-            if days_until <= 7:
-                obs.booking_window_bucket = "0-7d"
-            elif days_until <= 21:
-                obs.booking_window_bucket = "8-21d"
-            elif days_until <= 60:
-                obs.booking_window_bucket = "22-60d"
-            else:
-                obs.booking_window_bucket = "61+d"
+            obs.booking_window_bucket = booking_window_bucket(days_until)
 
         rows.append(obs)
 
@@ -212,13 +221,17 @@ async def calculate_percentile_baseline(
     destination: str,
     departure_date: str,
     min_samples: int = 5,
+    booking_window_bucket: str | None = None,
 ) -> dict[int, float] | None:
     """Calculate percentile-based price thresholds for a route+departure-month.
 
-    Uses SQLite NTILE(100) window function to compute percentiles from
-    accumulated PriceObservation rows. Returns a dict mapping percentile
-    (5, 10, 20, 30, 50) to the price at that percentile, or None when
-    there are fewer than ``min_samples`` observations for this route+month.
+    Uses accumulated PriceObservation rows. Returns a dict mapping percentile
+    (5, 10, 20, 30, 50) to the price at that percentile, or None when there
+    are fewer than ``min_samples`` observations for this route+month.
+
+    When ``booking_window_bucket`` is provided the baseline is scoped to the
+    same booking window as the current search, so a 2-day-out fare does not
+    skew a 60-day-out baseline.
     """
     try:
         dep_dt = datetime.strptime(departure_date, "%Y-%m-%d")
@@ -232,8 +245,10 @@ async def calculate_percentile_baseline(
         .where(PriceObservation.origin == origin)
         .where(PriceObservation.destination == destination)
         .where(PriceObservation.departure_month == month)
-        .order_by(PriceObservation.price_usd)
     )
+    if booking_window_bucket is not None:
+        query = query.where(PriceObservation.booking_window_bucket == booking_window_bucket)
+    query = query.order_by(PriceObservation.price_usd)
 
     result = await session.execute(query)
     prices: list[float] = [row[0] for row in result.all()]
@@ -252,7 +267,8 @@ async def calculate_percentile_baseline(
         percentiles[pct] = prices[idx]
 
     logger.info(
-        f"Percentile baseline for {origin}->{destination} month={month}: "
+        f"Percentile baseline for {origin}->{destination} month={month}"
+        f"{' bucket=' + booking_window_bucket if booking_window_bucket else ''}: "
         f"P50=${percentiles[50]:.2f} P20=${percentiles[20]:.2f} "
         f"P10=${percentiles[10]:.2f} (n={n})"
     )
