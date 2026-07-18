@@ -7,7 +7,9 @@ import pytest
 from app.models.flight import PriceObservation
 from app.utils.price_analysis import (
     apply_route_multiplier,
+    booking_window_bucket,
     calculate_median_price,
+    calculate_percentile_baseline,
     detect_deal,
     generate_route_id,
     get_route_type,
@@ -371,3 +373,68 @@ class TestMLFeaturePrecomputation:
         assert row.departure_month is None
         assert row.departure_day_of_week is None
         assert row.booking_window_bucket is None
+
+
+class TestBookingWindowBucket:
+    """Coarse bucketing of days-until-departure for baseline scoping."""
+
+    def test_boundaries(self):
+        assert booking_window_bucket(0) == "0-7d"
+        assert booking_window_bucket(7) == "0-7d"
+        assert booking_window_bucket(8) == "8-21d"
+        assert booking_window_bucket(21) == "8-21d"
+        assert booking_window_bucket(22) == "22-60d"
+        assert booking_window_bucket(60) == "22-60d"
+        assert booking_window_bucket(61) == "61+d"
+        assert booking_window_bucket(200) == "61+d"
+
+
+class TestPercentileBaselineScoping:
+    """calculate_percentile_baseline should scope by booking window."""
+
+    @pytest.mark.asyncio
+    async def test_scopes_by_booking_window_bucket(self):
+        """When a bucket is supplied, the query filters on it; observations
+        from a different window are excluded from the baseline."""
+        rows = [
+            PriceObservation(
+                origin="MCI", destination="LHR", departure_month=6,
+                booking_window_bucket="61+d", price_usd=900,
+            ),
+            PriceObservation(
+                origin="MCI", destination="LHR", departure_month=6,
+                booking_window_bucket="61+d", price_usd=950,
+            ),
+            PriceObservation(
+                origin="MCI", destination="LHR", departure_month=6,
+                booking_window_bucket="0-7d", price_usd=300,
+            ),
+        ]
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = MagicMock(
+            all=lambda: [(r.price_usd,) for r in rows]
+        )
+
+        # Without a bucket, all three rows count.
+        wide = await calculate_percentile_baseline(
+            mock_session, "MCI", "LHR", "2024-06-01", min_samples=1
+        )
+        assert wide is not None
+
+        # With the near-term bucket, only the 0-7d row (price 300) is in scope;
+        # capture the filter so we can assert the bucket predicate was applied.
+        calls = []
+
+        async def fake_execute(query):
+            calls.append(str(query))
+            return MagicMock(all=lambda: [(300,)])
+
+        mock_session.execute.side_effect = fake_execute
+        scoped = await calculate_percentile_baseline(
+            mock_session, "MCI", "LHR", "2024-06-01",
+            min_samples=1, booking_window_bucket="0-7d",
+        )
+        assert scoped is not None
+        assert any("booking_window_bucket" in c for c in calls), (
+            "baseline query did not filter by booking_window_bucket"
+        )

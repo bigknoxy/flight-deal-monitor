@@ -405,6 +405,30 @@ class TestTripTypeInScheduler:
         host = urlparse(url).netloc
         assert host == "www.kayak.com", f"UI says Kayak but URL host is {host}"
 
+    def test_booking_url_kayak_reachable(self):
+        """Link-health smoke test: the Kayak deep link must actually resolve
+        (HTTP 2xx and not redirect to an /unsupported dead-end). Google Flights
+        silently 302'd its deep links to /unsupported, which is what broke
+        booking before the Kayak switch — this guards against a regression.
+
+        Skips when offline so the unit suite stays hermetic in CI."""
+        import urllib.error
+        import urllib.request
+
+        url = _build_booking_url("MCI", "LHR", "2024-06-01")
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "fdm-health-check"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.getcode()
+                final = resp.geturl()
+        except urllib.error.HTTPError as e:
+            status, final = e.code, e.url
+        except (urllib.error.URLError, OSError):
+            pytest.skip("network unavailable — skipping live Kayak link-health check")
+
+        assert 200 <= status < 400, f"Kayak link unhealthy: HTTP {status}"
+        assert "/unsupported" not in final, f"Kayak link redirected to dead-end: {final}"
+
 
 class TestStopoverExtraction:
     """Test extraction of stopover airports from flight segments."""
