@@ -13,6 +13,11 @@ logger = logging.getLogger(__name__)
 # this key, so leaving it unchanged lets anyone forge an admin cookie.
 DEFAULT_SECRET_KEY = "change-me-in-production"
 
+# Single source of truth for the booking-link provider name. Booking URLs are
+# built in app.scanner._build_booking_url and the name is surfaced in the
+# dashboard UI; both must stay in sync, so the label lives here.
+BOOKING_PROVIDER_NAME = "Kayak"
+
 
 class DealThresholds(BaseSettings):
     """Deal detection thresholds."""
