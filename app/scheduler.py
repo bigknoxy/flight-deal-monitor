@@ -1,6 +1,8 @@
 """APScheduler setup for background jobs."""
 
 import logging
+import os
+from urllib.parse import urlparse
 
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -17,10 +19,29 @@ from app.scheduler_jobs import (
 logger = logging.getLogger(__name__)
 
 
+def _ensure_jobstore_dir() -> None:
+    """Ensure the SQLite job store directory exists."""
+    jobstore_url = config.env.scheduler_jobstore_url
+    if jobstore_url.startswith("sqlite"):
+        parsed = urlparse(jobstore_url)
+        db_path = parsed.path.lstrip("/")
+        db_dir = os.path.dirname(db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+
+
+# Ensure job store directory exists before creating job store
+_ensure_jobstore_dir()
+
 # Job store for persistence
-# config.env.database_url is already a valid SQLAlchemy URL
-# (e.g. "sqlite:///./data/flight_deals.db"), so use it verbatim.
-jobstores = {"default": SQLAlchemyJobStore(url=config.env.database_url)}
+# Uses a separate SQLite file from app data to avoid lock contention.
+# engine_options with connect_args sets busy_timeout for SQLite.
+jobstores = {
+    "default": SQLAlchemyJobStore(
+        url=config.env.scheduler_jobstore_url,
+        engine_options={"connect_args": {"timeout": 5}},
+    )
+}
 
 # Executor
 executors = {
