@@ -5,6 +5,53 @@ Decisions are immutable once recorded — if context changes, start a new entry.
 
 ---
 
+## 2026-07-19 (2) — Full panel re-rating after reliability fixes (main @ 6756449)
+
+**Trigger**: User: "run full panel" after two fixes landed since the 2026-07-19
+re-rating: (1) bot polling watchdog P0 (`app/bot.py:107-132`, commit cc16c32),
+(2) APScheduler job store separated to its own SQLite file (`app/scheduler.py:39-44`
++ `app/config.py scheduler_jobstore_url`, commit 6756449). User decision reaffirmed:
+monetization / multi-user DB migration is OUT OF SCOPE — personal/family tool only.
+
+**Verified state**: 485 passed / 8 skipped, ruff clean, CI green. Prior 3 P1s closed
+in code (confirmed 2026-07-19). Two new test files: test_bot_watchdog.py (4),
+test_scheduler_jobstore.py (6).
+
+### Lens verdicts + app re-rating (0-10)
+| Lens | Score | vs 2026-07-19 | Justification |
+|---|---|---|---|
+| levelsio (PMF) | **8** | 7 (+1) | Watchdog + DB separation make it "set-and-forget reliable" vs "works if you babysit it". |
+| hanselman (DX) | **8** | 8 (0) | Docker-first, in-app settings, health endpoint; watchdog/sep improve reliability but DX surface unchanged. |
+| belshe (Reliability) | **9** | 8 (+1) | **P0 watchdog CLOSED** (supervised restart + graceful shutdown); job-store contention eliminated. |
+| swyx (Defensibility) | **7** | 6 (+1) | Learned percentile baselines + booking-window scoping now route-month specific; still single-user, no ML. |
+| b0rk (Fragility) | **8** | 7 (+1) | Watchdog + separate jobstore closed critical gaps; shared-DB SPOF eliminated. |
+
+**New app average = 8.0/10** (8+8+9+7+8 = 40 / 5). Prior average 7.2/10.
+**Score is HIGHER by +0.8**, driven by the two reliability fixes (belshe +1, b0rk +1,
+levelsio +1) and the now-maturing baseline logic (swyx +1). DX flat (no user-facing DX
+change). For a personal/family single self-host with no monetization, the panel judges
+the app in solid shape.
+
+### Recommended next (personal/family scope only — excludes monetization/multi-user)
+Cross-lens consensus on highest-value owner-facing improvements:
+1. **Personal deal-history / seasonal insights** (swyx) — aggregate PriceObservation by
+   departure_month + track hit-rate by deal_type/airline to tune thresholds and show
+   "June MCI→LHR typically 25% cheaper than December".
+2. **Mobile actionability** (levelsio/hanselman) — Telegram inline keyboards (Book Now /
+   Snooze Route), `/alert <price> <route>` target-price command, mobile touch-target audit.
+3. **Observability** (hanselman/belshe) — `/metrics` Prometheus endpoint (scheduler health,
+   API usage, alert counts); structured logging instead of log-only.
+4. **Residual reliability (low priority)**: WAL on job-store file, daily `VACUUM INTO`
+   backup for both DBs, shutdown quiescence verification.
+5. **Residual fragility**: fli scraper brittleness (no graceful partial-result/retry
+   surfacing), single hardcoded home airport (MCI), Kayak deep-link dependency.
+
+### Tooling gap (unchanged)
+Built-in panelist subagents hardcoded to unavailable `openai/gpt-4o`; run via `developer`
+subagent (poolside/laguna-m.1) stand-in.
+
+---
+
 ## 2026-07-19 — Topic-decision + app re-rating (post PR #15 merge, main @ c3ad727)
 
 **Trigger**: User: "do a panel review" — decide between candidate next-focus topics,
