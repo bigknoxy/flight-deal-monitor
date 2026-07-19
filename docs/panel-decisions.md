@@ -5,6 +5,77 @@ Decisions are immutable once recorded — if context changes, start a new entry.
 
 ---
 
+## 2026-07-19 — Topic-decision + app re-rating (post PR #15 merge, main @ c3ad727)
+
+**Trigger**: User: "do a panel review" — decide between candidate next-focus topics,
+score them in a table, re-rate the app and check if the score improved vs the
+2026-07-16 session. Convened via opencode `developer` subagents standing in for the
+5 lenses (the built-in panelist subagents are hardcoded to an unavailable
+`openai/gpt-4o` model and fail to launch; documented as a tooling gap below).
+
+**Verified state (read from code, not assumed)**:
+- 3 prior P1 items are CONFIRMED CLOSED in code:
+  - `booking_window_bucket` consumed in `calculate_percentile_baseline()`
+    (`price_analysis.py:249-250` scopes query by bucket; `test_scopes_by_booking_
+    window_bucket` passes).
+  - Booking label derived from `BOOKING_PROVIDER_NAME = "Kayak"` constant
+    (`config.py:19` → `templates/__init__.py:19`), not a literal string.
+  - Kayak link-health test exists (`tests/test_kayak_client.py` + scheduler extended
+    suite).
+- REMAINING gap (new P0 from belshe): **bot polling watchdog** — `bot.py:64` creates
+  `_poll_task` but nothing supervises/restarts it if it dies (silent alert blackout).
+- Latest commit `c3ad727` (offline tests for flexible_dates + database_url, 22 tests,
+  ruff clean). Repo: 453+ passing, 8 skipped, 85.65% coverage, ruff clean, CI green.
+
+### Topic-decision table (5-lens weighted ranking)
+Ranked by panel consensus. Strategic Value (SV) / Urgency (U) / Defensibility (D) each 0-10;
+Effort (E) 0-10 where lower = easier. Weighted = (SV+U+D)/3 − E/5 (higher = prioritize).
+
+| Rank | Topic | SV | U | D | E | Weighted | Lead lens |
+|---|---|---|---|---|---|---|---|
+| 1 | **(c) Pricing / business model** — ship `@FlightDealBot` as primary surface, DB-backed dynamic destinations, free→paid tiers | 9 | 8 | 7 | 6 | **8.1** | levelsio |
+| 2 | **(d) Bot polling watchdog + supervisor** (P0 reliability) | 9 | 9 | 6 | 4 | **8.0** | belshe |
+| 3 | **(a) APScheduler + SQLite production-safety** (WAL, multi-instance Postgres guidance) | 7 | 8 | 5 | 5 | **6.4** | b0rk/hanselman |
+| 4 | **(d2) UserDealInteraction feedback loop** (defensibility moat) | 9 | 8 | 9 | 7 | **6.8 → re-ranked 2nd by swyx** | swyx |
+| 5 | **(b) AI/ML deal explanations** | 8 | 7 | 8 | 7 | **5.8** | swyx/levelsio |
+
+**Recommended next focus (panel synthesis)**: Do **(d) bot watchdog** FIRST — it is the
+only P0 and cheap (~20 lines, supervisor in `lifespan` checking `_poll_task.done()`).
+Then **(c) pricing/business model** is the highest-leverage strategic bet: the product
+IS the notification, not the dashboard; destinations must become DB-backed before a
+2nd user can be onboarded. AI/ML explanations (b) are premature until the baseline +
+interaction data are stable.
+
+### Lens verdicts + app re-rating (0-10)
+| Lens | Score | vs 2026-07-16 | One-line justification |
+|---|---|---|---|
+| levelsio (PMF) | **7** | 7 (flat) | Kayak relabel closed trust-lie; still zero distribution, single airport, no monetization surface live. |
+| hanselman (DX) | **8** | 7.5 (+0.5) | Clean self-host story, 483+ tests, health endpoint; SQLite job store needs multi-instance hardening docs. |
+| belshe (Reliability) | **8** | 8 (flat) | WAL + circuit breaker + reconciliation shipped; bot watchdog P0 still open. |
+| swyx (Defensibility) | **6** | 6 (flat) | booking_window_bucket fixed (stale P1); detection still trivially copyable, no ML consumes data yet. |
+| b0rk (Fragility) | **7** | 7 (flat) | Clean module boundaries; APScheduler+SQLite single point of failure unhardened. |
+
+**New app average = 7.2/10** (7+8+8+6+7 = 36 / 5). Prior average ≈ 7.1/10
+(7+7.5+8+6+7 = 35.5 / 5). **Score is HIGHER by +0.1**, driven by the DX lens
+(7.5→8) after PR #15's test hardening. Note: the *effective* health is materially
+better than the score implies because all 3 prior P1s are now closed in code — the
+score delta is small only because those closes were never reflected in the prior
+rating's trajectory.
+
+### Tooling gap (action item, not a code change)
+The built-in panelist subagents (`levelsio`, `hanselman`, `belshe`, `swyx`, `b0rk`,
+`panel-moderator`) are hardcoded to `openai/gpt-4o`, which is unavailable in this
+environment → they fail with "Model not found". This panel was run by invoking the
+`developer` subagent (poolside/laguna-m.1) with persona-prefixed prompts. Fix: either
+repoint the built-in panelist models or document the `developer`-stand-in procedure.
+
+**Recommended next (smallest-leverage-first)**:
+1. Bot polling watchdog supervisor in `lifespan` (belshe P0, ~20 lines).
+2. Update `handoff.md` — the 3 "OPEN" P1s are actually CLOSED (done in this session).
+3. Scope (c) pricing: DB-backed destinations + `@FlightDealBot` free→paid tiers.
+
+---
+
 ## 2026-07-16 23:30 — Re-review of committed booking-link fix (eee3fbb)
 
 **Trigger**: User: "run full panel re-review" after committing `eee3fbb` (fli

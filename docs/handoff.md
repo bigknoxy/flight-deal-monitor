@@ -4,20 +4,30 @@
 > whenever a significant change is made or a panel decision is recorded.**
 
 ## Last Updated
-2026-07-16 23:30 (full panel re-review of committed booking-link fix `eee3fbb`; 3 P1s confirmed open)
+2026-07-19 (panel re-rating; 3 prior P1s CONFIRMED CLOSED in code; 1 new P0 bot watchdog; app avg 7.2/10, +0.1 vs 2026-07-16)
 
 ## Current Status
 
 | Area | Status |
 |---|---|
-| Tests | 416 passing, 1 deselected (pre-existing `test_alembic` — `alembic` not installed, opt-in) |
+| Tests | 453+ passing, 8 skipped (incl. 22 new offline tests `test_flexible_dates_and_db.py` @ `c3ad727`) |
 | Lint | `ruff check app/ tests/` clean (exit 0) |
 | CI | Green on main (lint → test → Docker build) |
 | Open PRs | None |
-| Open Issues | None |
+| Open Issues | None (3 prior P1s closed in code; 1 new P0: bot polling watchdog) |
 | AGENTS.md | Updated |
-| Panel system | Validated — all panel fixes complete |
-| Git state | Clean working tree, latest commit on main (`eee3fbb`) |
+| Panel system | **Tooling gap**: built-in panelist subagents hardcoded to unavailable `openai/gpt-4o`; run via `developer` (poolside/laguna-m.1) stand-in |
+| Git state | Clean working tree, latest commit on main (`c3ad727`) |
+
+### Prior P1 backlog — STATUS CORRECTED (was falsely "OPEN" in 2026-07-16 handoff)
+| Item | Actual status | Evidence |
+|---|---|---|
+| Single-source-of-truth booking label | **CLOSED** | `BOOKING_PROVIDER_NAME = "Kayak"` constant (`config.py:19`) derived into templates (`templates/__init__.py:19`) |
+| Kayak link-health smoke test | **CLOSED** | `tests/test_kayak_client.py` + scheduler extended suite |
+| `booking_window_bucket` consumption in `calculate_percentile_baseline()` | **CLOSED** | `price_analysis.py:249-250` scopes query by bucket; `test_scopes_by_booking_window_bucket` passes |
+
+### New P0 (open)
+- **Bot polling watchdog** — `app/bot.py:64` creates `_poll_task` but no supervisor restarts it if it dies → silent alert blackout. (~20-line fix in `lifespan`.)
 
 ### Commit log (this session)
 | # | Hash | Summary |
