@@ -52,6 +52,7 @@ class BotHandler:
         self.token = config.env.telegram_bot_token
         self.base_url = f"https://api.telegram.org/bot{self.token}"
         self._poll_task: asyncio.Task | None = None
+        self._watchdog_task: asyncio.Task | None = None
         self._offset = 0
         self._running = False
 
@@ -62,11 +63,19 @@ class BotHandler:
             return
         self._running = True
         self._poll_task = asyncio.create_task(self._poll_loop())
+        self._watchdog_task = asyncio.create_task(self._watchdog_loop())
         logger.info("Telegram bot polling started")
 
     async def stop_polling(self) -> None:
         """Stop the polling loop."""
         self._running = False
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+            try:
+                await self._watchdog_task
+            except asyncio.CancelledError:
+                pass
+            self._watchdog_task = None
         if self._poll_task:
             self._poll_task.cancel()
             try:
@@ -94,6 +103,33 @@ class BotHandler:
             except Exception as e:
                 logger.warning(f"Bot poll error: {e}")
                 await asyncio.sleep(5)
+
+    async def _watchdog_loop(self) -> None:
+        """Monitor _poll_task and restart it if it terminates unexpectedly.
+
+        Does NOT restart during intentional shutdown (when _running is False).
+        Uses exponential backoff capped at 60s to avoid hot loops.
+        """
+        backoff = 1.0
+        while self._running:
+            await asyncio.sleep(1.0)
+            if self._poll_task is None:
+                continue
+            if self._poll_task.done():
+                # Task is done but not cancelled — unexpected termination
+                if not self._poll_task.cancelled():
+                    logger.warning(
+                        "Telegram bot poll loop terminated unexpectedly; restarting"
+                    )
+                    self._poll_task = asyncio.create_task(self._poll_loop())
+                    backoff = min(backoff * 2, 60.0)
+                    await asyncio.sleep(backoff)
+                else:
+                    # Task was cancelled during shutdown, exit watchdog
+                    break
+            else:
+                # Poll task healthy, reset backoff
+                backoff = 1.0
 
     async def _handle_update(self, update: dict) -> None:
         """Route an update to the appropriate command handler."""
