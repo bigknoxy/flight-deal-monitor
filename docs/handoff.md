@@ -4,30 +4,35 @@
 > whenever a significant change is made or a panel decision is recorded.**
 
 ## Last Updated
-2026-07-19 (panel re-rating; 3 prior P1s CONFIRMED CLOSED in code; 1 new P0 bot watchdog; app avg 7.2/10, +0.1 vs 2026-07-16)
+2026-07-19 (full panel re-rating after reliability fixes; app avg **8.0/10 (+0.8)** vs 2026-07-19; bot-watchdog P0 CLOSED; scheduler job store separated)
 
 ## Current Status
 
 | Area | Status |
 |---|---|
-| Tests | 453+ passing, 8 skipped (incl. 22 new offline tests `test_flexible_dates_and_db.py` @ `c3ad727`) |
+| Tests | 485 passing, 8 skipped (test_bot_watchdog.py +4, test_scheduler_jobstore.py +6, test_flexible_dates_and_db.py +22) |
 | Lint | `ruff check app/ tests/` clean (exit 0) |
 | CI | Green on main (lint → test → Docker build) |
 | Open PRs | None |
-| Open Issues | None (3 prior P1s closed in code; 1 new P0: bot polling watchdog) |
+| Open Issues | None — all prior P1s + bot-watchdog P0 CLOSED in code |
 | AGENTS.md | Updated |
 | Panel system | **Tooling gap**: built-in panelist subagents hardcoded to unavailable `openai/gpt-4o`; run via `developer` (poolside/laguna-m.1) stand-in |
-| Git state | Clean working tree, latest commit on main (`c3ad727`) |
+| Git state | Clean working tree, latest commit on main (`6756449`) |
 
-### Prior P1 backlog — STATUS CORRECTED (was falsely "OPEN" in 2026-07-16 handoff)
-| Item | Actual status | Evidence |
+### Prior P1 backlog — all CLOSED (verified in code)
+| Item | Status | Evidence |
 |---|---|---|
-| Single-source-of-truth booking label | **CLOSED** | `BOOKING_PROVIDER_NAME = "Kayak"` constant (`config.py:19`) derived into templates (`templates/__init__.py:19`) |
+| Single-source-of-truth booking label | **CLOSED** | `BOOKING_PROVIDER_NAME = "Kayak"` (`config.py:19`) → `templates/__init__.py:19` |
 | Kayak link-health smoke test | **CLOSED** | `tests/test_kayak_client.py` + scheduler extended suite |
-| `booking_window_bucket` consumption in `calculate_percentile_baseline()` | **CLOSED** | `price_analysis.py:249-250` scopes query by bucket; `test_scopes_by_booking_window_bucket` passes |
+| `booking_window_bucket` in `calculate_percentile_baseline()` | **CLOSED** | `price_analysis.py:249-250`; `test_scopes_by_booking_window_bucket` |
+| Bot polling watchdog (was P0) | **CLOSED** | `app/bot.py:107-132` `_watchdog_loop` + test_bot_watchdog.py |
+| Scheduler job store shared SQLite file (SPOF) | **CLOSED** | `app/scheduler.py:39-44` + `config.py scheduler_jobstore_url` + test_scheduler_jobstore.py |
 
-### New P0 (open)
-- **Bot polling watchdog** — `app/bot.py:64` creates `_poll_task` but no supervisor restarts it if it dies → silent alert blackout. (~20-line fix in `lifespan`.)
+### Scope decision (user)
+Monetization / multi-user DB migration is **OUT OF SCOPE** — personal/family tool only.
+Panel's remaining owner-facing suggestions (see panel-decisions.md 2026-07-19 (2)):
+personal deal-history/seasonal insights, mobile Telegram actionability, `/metrics`
+observability, optional WAL/backup for job-store. None are blockers.
 
 ### Commit log (this session)
 | # | Hash | Summary |
