@@ -187,6 +187,9 @@ class EnvConfig(BaseSettings):
     # (e.g. docker-compose ./data:/app/data) survives container recreation.
     database_url: str = "sqlite:///./data/flight_deals.db"
 
+    # Scheduler job store (separate SQLite file to avoid lock contention)
+    scheduler_jobstore_url: str = "sqlite:///./data/flight_deals_jobs.db"
+
     # Registration / bootstrap
     registration_disabled: bool = False
     admin_email: str = ""
