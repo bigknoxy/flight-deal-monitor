@@ -16,7 +16,7 @@
 | Open PRs | None |
 | Open Issues | None — all prior P1s + bot-watchdog P0 CLOSED in code |
 | AGENTS.md | Updated |
-| Panel system | **Tooling gap**: built-in panelist subagents hardcoded to unavailable `openai/gpt-4o`; run via `developer` (poolside/laguna-m.1) stand-in |
+| Panel system | Specialized agents in `.opencode/agents/*.md` (no model pin → default poolside/laguna-m.1); `opencode.json` gpt-4o override removed 2026-07-19. Task-tool `subagent_type` enum uses a separate built-in (gpt-4o) — use opencode native agent runtime, not the Task tool |
 | Git state | Clean working tree, latest commit on main (`6756449`) |
 
 ### Prior P1 backlog — all CLOSED (verified in code)
