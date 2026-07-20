@@ -46,9 +46,16 @@ Cross-lens consensus on highest-value owner-facing improvements:
 5. **Residual fragility**: fli scraper brittleness (no graceful partial-result/retry
    surfacing), single hardcoded home airport (MCI), Kayak deep-link dependency.
 
-### Tooling gap (unchanged)
-Built-in panelist subagents hardcoded to unavailable `openai/gpt-4o`; run via `developer`
-subagent (poolside/laguna-m.1) stand-in.
+### Tooling gap (RESOLVED at config level 2026-07-19)
+The specialized panel agents are defined in `.opencode/agents/*.md` (no model pin → use
+default) and duplicated in `.opencode/opencode.json`'s `agent` block, which HAD
+`"model": "openai/gpt-4o"` forcing an unavailable model. That override was REMOVED from
+`.opencode/opencode.json`, so both sources now fall back to the default model
+(poolside/laguna-m.1). NOTE: the opencode Task-tool `subagent_type` enum carries its own
+separate built-in registry (also `openai/gpt-4o`) that is NOT driven by these files; the
+panel is intended to run via opencode's native agent runtime (e.g. `/panel` or the
+agent runtime spawning `panel-moderator`), not the Task tool. The config-level fix is
+correct and necessary regardless.
 
 ---
 
