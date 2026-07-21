@@ -4,20 +4,21 @@
 > whenever a significant change is made or a panel decision is recorded.**
 
 ## Last Updated
-2026-07-19 (full panel re-rating after reliability fixes; app avg **8.0/10 (+0.8)** vs 2026-07-19; bot-watchdog P0 CLOSED; scheduler job store separated)
+2026-07-21 (panel review of PR #16 notifier-status banner + dedup rollback; app avg **8.0/10 flat** vs 2026-07-19(2) baseline; PR #16 green CI, OPEN — awaiting user merge)
 
 ## Current Status
 
 | Area | Status |
 |---|---|
-| Tests | 485 passing, 8 skipped (test_bot_watchdog.py +4, test_scheduler_jobstore.py +6, test_flexible_dates_and_db.py +22) |
+| Tests | 494 passing, 8 skipped (+9 from PR #16: 6 config + 2 dashboard + 1 dedup) |
+| Coverage | 85.81% (gate 85.0%) |
 | Lint | `ruff check app/ tests/` clean (exit 0) |
-| CI | Green on main (lint → test → Docker build) |
-| Open PRs | None |
+| CI | Green on PR #16 (lint pass 11s, test pass 54s, build skipped — PR not on main) |
+| Open PRs | **#16** — `fix/notifier-status-banner-and-dedup-rollback` @ `ca14b3c` (awaiting user merge) |
 | Open Issues | None — all prior P1s + bot-watchdog P0 CLOSED in code |
 | AGENTS.md | Updated |
 | Panel system | Specialized agents in `.opencode/agents/*.md` (no model pin → default poolside/laguna-m.1); `opencode.json` gpt-4o override removed 2026-07-19. Task-tool `subagent_type` enum uses a separate built-in (gpt-4o) — use opencode native agent runtime, not the Task tool |
-| Git state | Clean working tree, latest commit on main (`6756449`) |
+| Git state | PR #16 branch pushed; working tree has uncommitted `.gstack/` QA report (gitignored) |
 
 ### Prior P1 backlog — all CLOSED (verified in code)
 | Item | Status | Evidence |
@@ -38,6 +39,7 @@ observability, optional WAL/backup for job-store. None are blockers.
 | # | Hash | Summary |
 |---|---|---|
 | 1 | `eee3fbb` | fix: fli enum/None-price crashes + switch booking links to Kayak (relabel UI/README, TDD, backfill 986 rows) |
+| 2 | `ca14b3c` | fix(notifier+dedup): unconfigured-alerts banner + dedup cleanup rollback safety (PR #16, green CI) |
 
 ### Completed this sprint
 - **Rec 3: Architecture extraction — DONE + VERIFIED**
@@ -201,37 +203,41 @@ All decisions land in `docs/panel-decisions.md`. This file is updated every sess
 
 ## Next Recommended Action
 
-**Immediate (highest leverage)** — per 2026-07-16 full audit:
-1. **P0: Add bot polling watchdog** — check `_poll_task.done()` in a periodic task and
-   restart `_poll_loop()`; without this the bot silently dies (belshe/b0rk). ~S effort.
-2. **P1: Consume `booking_window_bucket`** in `calculate_percentile_baseline()` — 1-line
-   filter on `obs.booking_window_bucket`, improves detection accuracy (swyx/b0rk).
-3. **P1: Reconcile README** — it claims Slack/Discord/email notifiers not all wired;
-   state only Telegram + webhook notifiers actually exist (hanselman, B15).
-4. **P1: Document `generate_route_id()` hash contract** — changing airline/suffix
-   invalidates dedup silently; add code comment + test (b0rk).
-Then (P2): dynamic DB-backed destinations `/watch` (levelsio), `UserDealInteraction`
-model + false-positive classifier (swyx), `/metrics` (belshe), monetization (levelsio),
-PostgreSQL multi-instance path (belshe).
+**Immediate (highest leverage)** — per 2026-07-21 panel review of PR #16
+(all P2, non-blocking; PR itself is APPROVED and ready to merge):
 
-> NOTE: Three prior "deferred bugs" were FALSE POSITIVES (verified 2026-07-16 against
-> source): `_escape_md` double-escape, dead `elif` in scanner.py, and missing Makefile.
+1. **Merge PR #16** — `gh pr merge 16 --squash --delete-branch` after user signal.
+   Green CI verified: lint pass (11s), test pass (54s), build skipped (PR not on main).
+2. **README sync (P2, XS)** with banner behavior — repo rule: README must mention
+   that the dashboard shows a warning when no alert channels are configured.
+3. **Partial-config distinction (P2, S, b0rk)** — `Config.notifier_status()` v2
+   distinguishes `partially_configured` (e.g., telegram token but no chat_id) from
+   `none`. Current behavior shows "no channels configured" for partial configs,
+   which feels wrong to the user.
+4. **HTMX-live banner hide (P2, S, hanselman)** — configuring a notifier from
+   /settings should hide the warning banner without requiring a full reload; align
+   with the dashboard's existing HTMX reactivity.
+5. **Send-test-alert button (P2, M, levelsio)** on /settings — closes the
+   misconfigured-notifier failure mode that existence-checks can't catch (expired
+   token, wrong chat_id, bounced email).
+6. **Detection-health banner (P2, M, swyx)** — extend this banner pattern to
+   "Last successful scan: 3h ago" / "MCI→LHR 0 deals in 7 days — route may be stale."
+   First concrete step toward the data-loop closure swyx flagged in prior panels.
+
+**Carried-forward backlog (still open from prior panels):**
+- B8 `/metrics` endpoint (belshe, M) — observability for anomaly alerting
+- B15 README full reconc (hanselman, S) — includes the P2 README sync above
+- B17-B25 `UserDealInteraction` + `booking_window_bucket` consumption (swyx, M-L)
+- WAL/backup for job-store SQLite (belshe, M)
+- fli scraper brittleness mitigation (b0rk, M) — biggest cross-cutting risk
+- MCI hardcoded → config (levelsio, S) — multi-origin / multi-user potential
+
+**Scope reminder**: monetization / multi-user DB migration is **OUT OF SCOPE**
+(personal/family tool). Do not act on prior panel mentions of multi-tenant Postgres.
+
+> NOTE: Three prior "deferred bugs" verified FALSE POSITIVES on 2026-07-16
+> (`_escape_md` double-escape, dead `elif` in scanner.py, missing Makefile).
 > Do NOT spend time "fixing" these — they are already correct/resolved.
-
-## Live now (2026-07-16)
-
-- Dev server running on **`:8787`** (`/dev/shm` SQLite). Login open → register at `/auth/register`.
-- **Bug-fix + TDD sprint (2026-07-16)**:
-  - **UI empty-data root cause — 2 bugs in `app/scrapers/fli_client.py`, FIXED**:
-    1. fli returned `arrival_airport` as an `Airport` **enum**; `json.dumps()` in the subprocess crashed → every free search failed → fell through to paid providers (no keys) → zero deals. Added `_json_default()` (Enum→.value) + `from enum import Enum`; used in `json.dumps(default=...)`.
-    2. `f"{result.price:.2f}"` raised `NoneType.__format__` when `price=None`, killing whole-route conversion. Guarded `price = result.price if result.price is not None else 0.0`; wrapped per-result `_to_dict()` in try/except so one bad result can't sink a route.
-    - Result: `/deals` now returns 986 live deals (was 0). ruff clean.
-  - **Booking link fix**: `_build_google_flights_url` (dead Google `?q=` format) replaced by `_build_booking_url` → **Kayak** path format `https://www.kayak.com/flights/MCI-JFK/2026-09-10` (RT appends `/return_date`). VERIFIED: Google deprecated **all** deep-link params in 2026 — every `q=`, path `/flights/MCI-JFK/...`, and hand-rolled `tfs=` variant 302s to `/unsupported` (the user's own example link now also 404s). Kayak path format returns 200 and pre-fills origin/dest/dates. Skyscanner path format hits captcha (unusable).
-    - Backfilled all 986 existing `FlightDeal.booking_url` rows to Kayak via async script. Live `/deals` now serves `kayak.com/flights/...` links.
-  - **TDD**: added 6 Kayak URL-builder tests (replacing 4 dead `?q=` tests) in `test_scheduler_jobs_extended.py`; added `TestFLIClientJsonDefault` + 3 `_to_dict` regression tests (enum arrival_airport, None price→0.00, zero price) in `test_fli_client.py`. 38 relevant tests pass; full suite 415 passed / 1 pre-existing fail (test_alembic — `alembic` not installed; opt-in).
-- **Prior sprints still live**: reliability hardening, architecture extraction, learned baselines, Telegram bot, UI/UX QA fixes.
-
-> NOTE: The 2026-07-15 deferred "open items" (bot `_escape_md` double-escape, scanner dead `elif`, Makefile) were verified FALSE POSITIVES by the 2026-07-16 panel re-review — do NOT "fix" them. Only `booking_window_bucket` consumption remains a real P1.
 
 ## Previous sprints (archived)
 
