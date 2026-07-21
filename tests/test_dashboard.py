@@ -543,3 +543,58 @@ class TestDashboardNavigation:
                 assert response.status_code == 200
                 # All pages should include the sidebar nav
                 assert "Deal Monitor" in response.text
+
+
+class TestNotifierWarningBanner:
+    """Test notifier warning banner on dashboard."""
+
+    @pytest.mark.asyncio
+    async def test_dashboard_shows_warning_when_no_notifiers(self, client, mock_db_empty, mock_auth):
+        """Dashboard shows warning banner when no notifiers are configured."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.AsyncSessionLocal", return_value=mock_db_empty),
+            patch("app.routes.dashboard.get_scheduler_status") as mock_status,
+            patch("app.routes.dashboard.config.notifier_status") as mock_notifier,
+        ):
+            mock_status.return_value = {
+                "running": True,
+                "jobs": [],
+                "job_count": 0,
+            }
+            mock_notifier.return_value = {
+                "telegram": False,
+                "email": False,
+                "slack": False,
+                "discord": False,
+                "any_configured": False,
+            }
+            response = await client.get("/dashboard")
+            assert response.status_code == 200
+            assert "No alert channels configured" in response.text
+            assert "Settings" in response.text
+
+    @pytest.mark.asyncio
+    async def test_dashboard_no_warning_when_telegram_configured(self, client, mock_db_empty, mock_auth):
+        """Dashboard does NOT show warning when at least one notifier is configured."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.AsyncSessionLocal", return_value=mock_db_empty),
+            patch("app.routes.dashboard.get_scheduler_status") as mock_status,
+            patch("app.routes.dashboard.config.notifier_status") as mock_notifier,
+        ):
+            mock_status.return_value = {
+                "running": True,
+                "jobs": [],
+                "job_count": 0,
+            }
+            mock_notifier.return_value = {
+                "telegram": True,
+                "email": False,
+                "slack": False,
+                "discord": False,
+                "any_configured": True,
+            }
+            response = await client.get("/dashboard")
+            assert response.status_code == 200
+            assert "No alert channels configured" not in response.text

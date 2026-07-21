@@ -259,3 +259,42 @@ async def test_cleanup_expired_deals():
         assert count == 1
         mock_session.delete.assert_called_once()
         mock_session.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_expired_deals_rollback_on_error():
+    """Test cleanup rolls back on exception during delete loop."""
+    with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session_cls:
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+
+        expired_deal = FlightDeal(
+            route_id="expired_route",
+            origin="MCI",
+            destination="LHR",
+            departure_date="2024-06-01",
+            airline="BA",
+            flight_numbers="BA123",
+            original_price_usd=500.0,
+            current_price_usd=300.0,
+            price_drop_percent=40.0,
+            deal_type="flash_sale",
+            booking_url="https://example.com",
+            expired_at=datetime.utcnow() - timedelta(hours=1),
+        )
+
+        mock_scalars_result = MagicMock()
+        mock_scalars_result.all.return_value = [expired_deal]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars_result
+
+        mock_session.execute.return_value = mock_result
+        # Make delete succeed but commit fail
+        mock_session.commit.side_effect = RuntimeError("DB error")
+
+        with pytest.raises(RuntimeError, match="DB error"):
+            await cleanup_expired_deals(mock_session)
+
+        # Verify rollback was called on error
+        mock_session.rollback.assert_called_once()

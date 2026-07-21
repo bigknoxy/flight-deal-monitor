@@ -109,10 +109,15 @@ async def cleanup_expired_deals(
     expired_deals = result.scalars().all()
 
     count = 0
-    for deal in expired_deals:
-        await session.delete(deal)
-        count += 1
+    try:
+        for deal in expired_deals:
+            await session.delete(deal)
+            count += 1
 
-    await session.commit()
-    logger.info(f"Cleaned up {count} expired flight deals")
+        await session.commit()
+        logger.info(f"Cleaned up {count} expired flight deals")
+    except Exception as e:
+        logger.error(f"Failed to cleanup expired deals: {e}")
+        await session.rollback()
+        raise
     return count
