@@ -159,3 +159,75 @@ class TestGlobalConfig:
         assert thresholds.mistake_fare_percent == 0.70
         assert thresholds.flash_sale_percent == 0.50
         assert thresholds.deep_flash_percent == 0.65
+
+
+class TestNotifierStatus:
+    """Test notifier_status helper."""
+
+    def test_notifier_status_no_notifiers_configured(self):
+        """When no notifiers are set, all flags are False and any_configured is False."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        # Reset env to ensure no values from .env file
+        cfg.env = EnvConfig(_env_file=None)
+        status = cfg.notifier_status()
+        assert status["telegram"] is False
+        assert status["email"] is False
+        assert status["slack"] is False
+        assert status["discord"] is False
+        assert status["any_configured"] is False
+
+    def test_notifier_status_telegram_configured(self):
+        """Telegram is configured when both token and chat_id are set."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.telegram_bot_token = "test_token"
+        cfg.env.telegram_chat_id = "test_chat_id"
+        status = cfg.notifier_status()
+        assert status["telegram"] is True
+        assert status["email"] is False
+        assert status["slack"] is False
+        assert status["discord"] is False
+        assert status["any_configured"] is True
+
+    def test_notifier_status_email_configured(self):
+        """Email is configured when smtp_host and smtp_user are set."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.smtp_host = "smtp.example.com"
+        cfg.env.smtp_user = "user@example.com"
+        status = cfg.notifier_status()
+        assert status["telegram"] is False
+        assert status["email"] is True
+        assert status["slack"] is False
+        assert status["discord"] is False
+        assert status["any_configured"] is True
+
+    def test_notifier_status_slack_configured(self):
+        """Slack is configured when webhook_url is set."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.slack_webhook_url = "https://hooks.slack.com/test"
+        status = cfg.notifier_status()
+        assert status["slack"] is True
+        assert status["any_configured"] is True
+
+    def test_notifier_status_discord_configured(self):
+        """Discord is configured when webhook_url is set."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.discord_webhook_url = "https://discord.com/api/webhooks/test"
+        status = cfg.notifier_status()
+        assert status["discord"] is True
+        assert status["any_configured"] is True
+
+    def test_notifier_status_multiple_configured(self):
+        """any_configured is True when any notifier is set."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.telegram_bot_token = "token"
+        cfg.env.telegram_chat_id = "chat"
+        cfg.env.slack_webhook_url = "https://hooks.slack.com/test"
+        status = cfg.notifier_status()
+        assert status["telegram"] is True
+        assert status["slack"] is True
+        assert status["any_configured"] is True

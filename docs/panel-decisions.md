@@ -1530,3 +1530,98 @@ open backlog and historically "deferred" fixes, re-verified against actual sourc
 **APPROVED for single-instance unattended deployment once the bot watchdog (P0) lands.**
 All other items are enhancements, not blockers. Prior panel fixes (commit 284a62e) remain
 valid; this audit corrects three stale "deferred bug" claims in handoff.md.
+
+---
+
+## 2026-07-21 Panel Review — PR #16 (notifier-status banner + dedup rollback)
+
+**Branch**: `fix/notifier-status-banner-and-dedup-rollback` @ `ca14b3c`
+**Baseline**: 2026-07-19(2) re-rating avg **8.0/10** (main @ `6756449`).
+**Scope**: Cross-cutting QA-driven fix — UX warning banner for unconfigured
+notifiers (Fix A) + dedup cleanup rollback safety (Fix B) + 9 new tests.
+Green CI verified: lint ✓ (11s), test ✓ (54s), build skipped (PR not on main).
+Local: 494 passed / 8 skipped, 85.81% coverage, ruff clean.
+
+### Panel ratings (all flat vs 2026-07-19(2) — hygiene PR, no rating move)
+
+| Panelist | Score | Delta | Lens |
+|---|---|---|---|
+| levelsio | 8/10 | flat | PMF, travel-hacker UX |
+| hanselman | 8/10 | flat | DX, self-host, dashboard UX |
+| belshe | 9/10 | flat | reliability, prod readiness |
+| swyx | 7/10 | flat | AI/ML, defensibility, data layer |
+| b0rk | 8/10 | flat | architecture, fragility |
+| **avg** | **8.0/10** | flat | |
+
+### Per-panelist findings
+
+**levelsio (biz / PMF / travel-hacker UX)**
+- Banner closes a churn trap: new user with no notifier → deals detected, no pings.
+- Existence check ≠ live health — misconfigured tokens (expired, wrong chat_id, bounced
+  email) pass `notifier_status()` but silently fail at send-time.
+- Asymmetric follow-up: "Send test alert" button on /settings + daily heartbeat ping.
+  That's what saves a $200 MCI→LHR fare from a stealth-broken Telegram token.
+
+**hanselman (DX / self-host / dashboard UX)**
+- Good: banner in the right template slot (before empty-destinations), no new deps,
+  pure config helper — a self-hoster cloning with no `.env` sees the warning on first
+  load (4-second time-to-value win).
+- Nit: banner is server-rendered, not HTMX-swapped — configuring a notifier via /settings
+  needs a full reload to hide it. Inconsistent with dashboard reactivity.
+- Test quality: 4-channel × configured/unconfigured matrix + response-HTML assertion in
+  `test_dashboard_shows_warning_when_no_notifiers` — solid.
+- Process miss: README not updated with banner behavior (repo rule violation, minor).
+
+**belshe (reliability / prod)**
+- The correctness fix of the PR. Bare `commit` → wrapped `try/except/rollback/raise`.
+  Textbook pattern: log, rollback, re-raise so the outer scheduler marks JobRun failed.
+- `except Exception` (not `BaseException`) — correct, doesn't swallow
+  KeyboardInterrupt/SystemExit; test uses RuntimeError, coverage honest.
+- Still single-instance-safe. Bot watchdog (P0 from prior panels) remains closed. No
+  new risk introduced.
+
+**swyx (AI/ML / defensibility / data layer)**
+- No data-layer change. `notifier_status()` is config-derived booleans, no model layer.
+- +9 tests pure-unit (no integration) — appropriate for scope.
+- Strategic angle: this banner is the app's first piece of user-facing observability
+  (surfaces internal state to user). Natural extension: same pattern for **detection
+  health** — "Last successful scan: 3h ago" / "MCI→LHR 0 deals in 7 days — route stale."
+  That's the data-loop closure I flagged last time, and this banner is the template.
+
+**b0rk (architecture / fragility)**
+- Fragility reduced (sqlite lock contention during cleanup can no longer cascade).
+- New fragility: none. `Config.notifier_status()` is pure, called once per request, no
+  caching, no side-effects.
+- Contract concern (pre-existing, not introduced): partial config (token but no
+  chat_id) shows "no channels configured" — feels wrong to a user with half a config.
+  Recommend future v2 distinguishes `partially_configured` from `none`.
+- Test architecture: `EnvConfig(_env_file=None)` reset is the right env-isolation
+  pattern — better than monkeypatching globals.
+- Decomposition clean — respects module boundaries (config → route → template).
+
+### Cross-cutting synthesis
+
+- **Verdict**: APPROVED. No regressions. Green CI. +9 tests. Well-scoped QA hygiene.
+- **Rating**: **8.0/10 avg (flat)**. Correct outcome — hygiene shouldn't move rating.
+- **No P0s, no P1s introduced or changed.** All prior P1s remain closed.
+
+### Follow-ups (all P2, non-blocking)
+
+1. **README sync** (hanselman, XS) — repo rule: README must mention banner behavior.
+2. **Partial-config distinction** (b0rk, S) — `notifier_status()` v2 distinguishes
+   `partially_configured` from `none`.
+3. **HTMX-live banner hide** (hanselman, S) — /settings config swap should hide banner
+   without reload.
+4. **Send-test-alert button on /settings** (levelsio, M) — closes the misconfigured-
+   notifier failure mode existence-checks can't catch.
+5. **Detection-health banner** (swyx, M) — "last successful scan" / "route may be
+   stale"; extends this banner pattern to data-loop visibility.
+
+### Carried-forward backlog (still open from prior panels)
+
+- B8 `/metrics` endpoint (belshe, M)
+- B15 README full reconc (hanselman, S)
+- B17-B25 `UserDealInteraction` + booking_window_bucket consumption (swyx, M-L)
+- WAL/backup for job-store SQLite (belshe, M)
+- fli scraper brittleness mitigation (b0rk, M)
+- MCI hardcoded → config (levelsio, S)
