@@ -208,6 +208,7 @@ async def dashboard_index(
     stats = await _get_deal_stats()
     scheduler = get_scheduler_status()
     cfg = _get_route_config()
+    notifier_status = config.notifier_status()
 
     # Get last job run
     async with AsyncSessionLocal() as session:
@@ -259,6 +260,7 @@ async def dashboard_index(
         config=cfg,
         last_job=last_job,
         route_deals=route_deals,
+        notifier_status=notifier_status,
     )
 
 

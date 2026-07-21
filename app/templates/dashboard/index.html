@@ -8,6 +8,14 @@
     <p>Overview of your flight deal monitoring system</p>
 </div>
 
+{% if not notifier_status.any_configured %}
+<div class="empty-state" style="background: rgba(255, 165, 2, 0.1); border: 1px solid var(--warning); margin-bottom: 1rem;">
+    <div class="icon">&#9888;</div>
+    <h3 style="color: var(--warning);">No alert channels configured</h3>
+    <p>Deals are detected but you won't be notified. Add Telegram, Email, or Webhooks in <a href="/dashboard/settings" style="color: var(--accent);">Settings</a>.</p>
+</div>
+{% endif %}
+
 {% if not config.destinations %}
 <div class="empty-state">
     <div class="icon">&#9992;</div>

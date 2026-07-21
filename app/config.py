@@ -248,6 +248,25 @@ class Config:
         elif self.env.secret_key:
             logger.info("SECRET_KEY loaded from environment (.env).")
 
+    def notifier_status(self) -> dict:
+        """Return status of configured alert notifiers.
+
+        Returns dict with boolean flags for each notifier type and any_configured.
+        """
+        telegram = bool(self.env.telegram_bot_token and self.env.telegram_chat_id)
+        email = bool(self.env.smtp_host and self.env.smtp_user)
+        slack = bool(self.env.slack_webhook_url)
+        discord = bool(self.env.discord_webhook_url)
+        any_configured = telegram or email or slack or discord
+
+        return {
+            "telegram": telegram,
+            "email": email,
+            "slack": slack,
+            "discord": discord,
+            "any_configured": any_configured,
+        }
+
 
 # Global config instance
 config = Config()
