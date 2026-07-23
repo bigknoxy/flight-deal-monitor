@@ -20,6 +20,14 @@
 </div>
 {% endif %}
 
+{% if test_result %}
+<div id="test-alert-results" class="toast {% if test_result.any_ok %}success{% else %}error{% endif %}" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 8000)">
+    {% for channel, result in test_result.per_channel.items() %}
+    <div>{{ channel|capitalize }}: {{ result }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <form method="post" action="/dashboard/settings/save" x-data="{ dirty: false }">
     <div class="card">
         <div class="card-header">Telegram Alerts</div>
@@ -99,6 +107,24 @@
                    placeholder="https://discord.com/api/webhooks/..."
                    @input="dirty = true">
         </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Test Alert Delivery</div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">
+            Fire a one-off ping to every configured notifier and report per-channel pass/fail.
+            Use this to verify a notifier works before waiting for a real deal.
+        </p>
+        <button type="button"
+                class="btn btn-primary"
+                hx-post="/dashboard/settings/test-alerts"
+                hx-target="#test-alert-results"
+                hx-swap="innerHTML"
+                hx-disabled-elt="this"
+                style="padding: 0.6rem 1.25rem;">
+            Send Test Alert
+        </button>
+        <div id="test-alert-results" style="margin-top: 1rem;"></div>
     </div>
 
     <div class="card">

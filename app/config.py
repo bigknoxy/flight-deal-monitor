@@ -251,7 +251,11 @@ class Config:
     def notifier_status(self) -> dict:
         """Return status of configured alert notifiers.
 
-        Returns dict with boolean flags for each notifier type and any_configured.
+        Returns dict with boolean flags for each notifier type, any_configured,
+        and a partially_configured list naming channels that have SOME but not
+        ALL required env vars set (e.g. telegram token without chat_id). Channels
+        requiring only a single env var (slack, discord) cannot be partial and
+        are never added to the list.
         """
         telegram = bool(self.env.telegram_bot_token and self.env.telegram_chat_id)
         email = bool(self.env.smtp_host and self.env.smtp_user)
@@ -259,12 +263,23 @@ class Config:
         discord = bool(self.env.discord_webhook_url)
         any_configured = telegram or email or slack or discord
 
+        partially_configured: list[str] = []
+        # Telegram requires token AND chat_id — partial if exactly one is set.
+        if not telegram and bool(self.env.telegram_bot_token) != bool(
+            self.env.telegram_chat_id
+        ):
+            partially_configured.append("telegram")
+        # Email requires smtp_host AND smtp_user — partial if exactly one is set.
+        if not email and bool(self.env.smtp_host) != bool(self.env.smtp_user):
+            partially_configured.append("email")
+
         return {
             "telegram": telegram,
             "email": email,
             "slack": slack,
             "discord": discord,
             "any_configured": any_configured,
+            "partially_configured": partially_configured,
         }
 
 

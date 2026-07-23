@@ -1,5 +1,6 @@
 """Dashboard routes for the web UI."""
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
@@ -543,6 +544,7 @@ async def dashboard_settings(
     user: dict = Depends(require_login),
     saved: bool = False,
     save_error: str | None = None,
+    test_result: dict | None = None,
 ) -> HTMLResponse:
     """Settings display page."""
     config_info = await _get_config_display()
@@ -554,6 +556,57 @@ async def dashboard_settings(
         env=config_info["env"],
         saved=saved,
         save_error=save_error,
+        test_result=test_result,
+    )
+
+
+@router.post("/dashboard/settings/test-alerts")
+async def dashboard_settings_test_alerts(
+    request: Request,
+    user: dict = Depends(require_login),
+) -> HTMLResponse:
+    """Fire test_connection() on every notifier in parallel, render results.
+
+    Returns a partial HTML block (id=\"test-alert-results\") suitable for
+    HTMX out-of-band swap. Each notifier returns True/False; partial config
+    or unconfigured channels show as \"not configured\" instead of \"failed\".
+    """
+    from app.alert import telegram_bot
+    from app.notifiers.discord import discord_notifier
+    from app.notifiers.email import email_notifier
+    from app.notifiers.slack import slack_notifier
+
+    status = config.notifier_status()
+
+    tasks = [
+        telegram_bot.test_connection(),
+        email_notifier.test_connection(),
+        slack_notifier.test_connection(),
+        discord_notifier.test_connection(),
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    channel_names = ["telegram", "email", "slack", "discord"]
+
+    per_channel: dict[str, str] = {}
+    any_ok = False
+    for name, configured, result in zip(channel_names, [status["telegram"], status["email"], status["slack"], status["discord"]], results):
+        if not configured:
+            per_channel[name] = "not_configured"
+            continue
+        if isinstance(result, Exception):
+            per_channel[name] = "error"
+        elif result is True:
+            per_channel[name] = "ok"
+            any_ok = True
+        else:
+            per_channel[name] = "failed"
+
+    return render(
+        request,
+        "dashboard/_test_alerts_results.html",
+        active_page="settings",
+        per_channel=per_channel,
+        any_ok=any_ok,
     )
 
 

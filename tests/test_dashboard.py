@@ -568,6 +568,7 @@ class TestNotifierWarningBanner:
                 "slack": False,
                 "discord": False,
                 "any_configured": False,
+                "partially_configured": [],
             }
             response = await client.get("/dashboard")
             assert response.status_code == 200
@@ -594,9 +595,40 @@ class TestNotifierWarningBanner:
                 "slack": False,
                 "discord": False,
                 "any_configured": True,
+                "partially_configured": [],
             }
             response = await client.get("/dashboard")
             assert response.status_code == 200
+            assert "No alert channels configured" not in response.text
+
+    @pytest.mark.asyncio
+    async def test_dashboard_shows_partial_config_warning(
+        self, client, mock_db_empty, mock_auth
+    ):
+        """Dashboard shows partially-configured warning when a channel has missing fields."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.AsyncSessionLocal", return_value=mock_db_empty),
+            patch("app.routes.dashboard.get_scheduler_status") as mock_status,
+            patch("app.routes.dashboard.config.notifier_status") as mock_notifier,
+        ):
+            mock_status.return_value = {
+                "running": True,
+                "jobs": [],
+                "job_count": 0,
+            }
+            mock_notifier.return_value = {
+                "telegram": False,
+                "email": False,
+                "slack": False,
+                "discord": False,
+                "any_configured": False,
+                "partially_configured": ["telegram"],
+            }
+            response = await client.get("/dashboard")
+            assert response.status_code == 200
+            assert "Partially configured alert channels" in response.text
+            assert "telegram" in response.text
             assert "No alert channels configured" not in response.text
 
 
@@ -737,6 +769,96 @@ class TestDetectionHealthBanner:
             response = await client.get("/dashboard")
             assert response.status_code == 200
             assert "Detection health needs attention" not in response.text
+
+
+class TestSendTestAlerts:
+    """Tests for the POST /dashboard/settings/test-alerts endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_test_alerts_all_ok(self, client, mock_auth):
+        """All configured notifiers succeed → per_channel all 'ok', any_ok=True."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.config.notifier_status") as mock_status,
+            patch("app.alert.telegram_bot.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.email.email_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.slack.slack_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.discord.discord_notifier.test_connection", new=AsyncMock(return_value=True)),
+        ):
+            mock_status.return_value = {
+                "telegram": True,
+                "email": True,
+                "slack": True,
+                "discord": True,
+                "any_configured": True,
+                "partially_configured": [],
+            }
+            response = await client.post("/dashboard/settings/test-alerts")
+            assert response.status_code == 200
+            body = response.text
+            # Per-channel row labels show each channel name (capitalized) + <strong>OK</strong>.
+            assert "Telegram" in body
+            assert "Email" in body
+            assert "Slack" in body
+            assert "Discord" in body
+            # 4 notifiers all reported ok
+            assert body.count("OK") == 4
+            assert "not configured" not in body
+            assert "failed" not in body
+
+    @pytest.mark.asyncio
+    async def test_test_alerts_unconfigured_channels_show_not_configured(
+        self, client, mock_auth
+    ):
+        """Channels with status[chan]=False render as 'not configured', not 'failed'."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.config.notifier_status") as mock_status,
+            patch("app.alert.telegram_bot.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.email.email_notifier.test_connection", new=AsyncMock(return_value=False)),
+            patch("app.notifiers.slack.slack_notifier.test_connection", new=AsyncMock(return_value=False)),
+            patch("app.notifiers.discord.discord_notifier.test_connection", new=AsyncMock(return_value=False)),
+        ):
+            mock_status.return_value = {
+                "telegram": True,
+                "email": False,
+                "slack": False,
+                "discord": False,
+                "any_configured": True,
+                "partially_configured": [],
+            }
+            response = await client.post("/dashboard/settings/test-alerts")
+            assert response.status_code == 200
+            body = response.text
+            # Telegram is configured and ok → shows OK
+            assert "OK" in body
+            # Other three channels are unconfigured → 'not configured' label
+            assert body.count("not configured") == 3
+
+    @pytest.mark.asyncio
+    async def test_test_alerts_exception_marks_error(self, client, mock_auth):
+        """A notifier throwing an exception renders as 'error', not 'failed'."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.config.notifier_status") as mock_status,
+            patch("app.alert.telegram_bot.test_connection", new=AsyncMock(side_effect=RuntimeError("boom"))),
+            patch("app.notifiers.email.email_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.slack.slack_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.discord.discord_notifier.test_connection", new=AsyncMock(return_value=True)),
+        ):
+            mock_status.return_value = {
+                "telegram": True,
+                "email": True,
+                "slack": True,
+                "discord": True,
+                "any_configured": True,
+                "partially_configured": [],
+            }
+            response = await client.post("/dashboard/settings/test-alerts")
+            assert response.status_code == 200
+            body = response.text
+            assert "error" in body.lower()
+            assert "boom" not in body  # don't leak raw exception text to UI
 
 
 def _configured_route_pairs():
