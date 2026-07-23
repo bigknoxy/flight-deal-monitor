@@ -136,6 +136,9 @@ The dashboard is available at `http://localhost:8787/dashboard` after registerin
 - **Stats cards**: Total deals, active routes, scheduler status, last sweep time
 - **Routes overview**: Per-route deal cards with price, trend, airline, deal type
 - **Scheduled jobs table**: All jobs with next run time
+- **Status banners** (shown only when something needs attention):
+  - **No alert channels configured** — amber warning when zero notifiers (Telegram, Email, Slack, Discord) are set up; links to Settings. See `Config.notifier_status()` in `app/config.py`.
+  - **Detection health needs attention** — amber warning when the scheduler has no successful `JobRun` in the last 6 hours, or any configured `home_airport → destination` route pair has produced zero `FlightDeal` rows in the last 7 days. Lists the stale route codes (e.g. `MCI-JFK`). See `_get_detection_status()` in `app/routes/dashboard.py`.
 
 ### Deals Page
 - Filter by deal type (mistake fare, flash sale, deep flash)
@@ -158,6 +161,7 @@ The dashboard is available at `http://localhost:8787/dashboard` after registerin
 ### Settings Page
 - Editable form — changes persist to the database and take effect on reload (no restart needed)
 - Sections: Application, Deal Thresholds, Sweep Intervals, Route Multipliers, Cache, Long Weekend, Environment
+- **Send Test Alert** button — fires `test_connection()` against every configured notifier in parallel and reports per-channel pass/fail inline. Use it to verify a notifier works before waiting for a real deal. See the `/dashboard/settings/test-alerts` endpoint in `app/routes/dashboard.py`.
 
 ## Configuration ⚙️
 
