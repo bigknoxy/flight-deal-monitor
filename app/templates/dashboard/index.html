@@ -16,6 +16,26 @@
 </div>
 {% endif %}
 
+{% if detection_status.is_stale %}
+<div class="empty-state" style="background: rgba(255, 165, 2, 0.08); border: 1px solid var(--warning); margin-bottom: 1rem;">
+    <div class="icon">&#9888;</div>
+    <h3 style="color: var(--warning);">Detection health needs attention</h3>
+    <p>
+        {% if detection_status.last_success_at %}
+        Last successful scan: {{ detection_status.last_success_at.strftime('%Y-%m-%d %H:%M UTC') }} ({{ detection_status.last_success_age_hours }}h ago).
+        {% else %}
+        No successful scans recorded yet.
+        {% endif %}
+        {% if detection_status.last_success_age_hours is not none and detection_status.last_success_age_hours >= detection_status.stale_scan_hours %}
+        Sweeps are stale (&ge; {{ detection_status.stale_scan_hours }}h since last success) &mdash; check the scheduler on the <a href="/dashboard/history" style="color: var(--accent);">History</a> page.
+        {% endif %}
+        {% if detection_status.routes_with_zero_deals %}
+        <br>{{ detection_status.routes_with_zero_deals|length }} configured route(s) produced no deals in the last {{ detection_status.stale_route_days }} days: {{ detection_status.routes_with_zero_deals|join(', ') }}.
+        {% endif %}
+    </p>
+</div>
+{% endif %}
+
 {% if not config.destinations %}
 <div class="empty-state">
     <div class="icon">&#9992;</div>

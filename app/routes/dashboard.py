@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import yaml
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -199,6 +199,74 @@ async def _get_config_display() -> dict:
     }
 
 
+async def _get_detection_status() -> dict:
+    """Aggregate detection-health signals for the dashboard banner.
+
+    Surfaces:
+      - last_success_at: most recent JobRun with status='success' (completed_at
+        when present, else started_at). None if no successful runs exist.
+      - last_success_age_hours: hours since last_success_at (None if never).
+      - routes_with_zero_deals: list of "ORIG-DEST" configured routes that have
+        produced zero FlightDeal rows whose seen_at is within STALE_ROUTE_DAYS.
+      - is_stale: True when no successful scan in STALE_SCAN_HOURS, OR any
+        configured route has zero recent deals.
+    """
+    stale_scan_hours = 6
+    stale_route_days = 7
+
+    async with AsyncSessionLocal() as session:
+        last_success_result = await session.execute(
+            select(JobRun)
+            .where(JobRun.status == "success")
+            .order_by(JobRun.completed_at.desc(), JobRun.started_at.desc())
+            .limit(1)
+        )
+        last_success = last_success_result.scalar_one_or_none()
+
+    last_success_at: datetime | None = None
+    last_success_age_hours: float | None = None
+    if last_success:
+        last_success_at = last_success.completed_at or last_success.started_at
+        last_success_age_hours = round(
+            (datetime.utcnow() - last_success_at).total_seconds() / 3600.0, 1
+        )
+
+    home_airports = config.app.home_airports
+    destinations = config.app.destinations
+    stale_since = datetime.utcnow() - timedelta(days=stale_route_days)
+
+    routes_with_zero_deals: list[str] = []
+    async with AsyncSessionLocal() as session:
+        for origin in home_airports:
+            for dest in destinations:
+                count_result = await session.execute(
+                    select(func.count())
+                    .select_from(FlightDeal)
+                    .where(
+                        FlightDeal.origin == origin.upper(),
+                        FlightDeal.destination == dest.upper(),
+                        FlightDeal.seen_at >= stale_since,
+                    )
+                )
+                if (count_result.scalar() or 0) == 0:
+                    routes_with_zero_deals.append(f"{origin.upper()}-{dest.upper()}")
+
+    is_stale = (
+        last_success_age_hours is None
+        or last_success_age_hours >= stale_scan_hours
+        or len(routes_with_zero_deals) > 0
+    )
+
+    return {
+        "last_success_at": last_success_at,
+        "last_success_age_hours": last_success_age_hours,
+        "routes_with_zero_deals": routes_with_zero_deals,
+        "stale_scan_hours": stale_scan_hours,
+        "stale_route_days": stale_route_days,
+        "is_stale": is_stale,
+    }
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_index(
     request: Request,
@@ -209,6 +277,7 @@ async def dashboard_index(
     scheduler = get_scheduler_status()
     cfg = _get_route_config()
     notifier_status = config.notifier_status()
+    detection_status = await _get_detection_status()
 
     # Get last job run
     async with AsyncSessionLocal() as session:
@@ -261,6 +330,7 @@ async def dashboard_index(
         last_job=last_job,
         route_deals=route_deals,
         notifier_status=notifier_status,
+        detection_status=detection_status,
     )
 
 
