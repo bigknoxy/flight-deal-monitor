@@ -1,15 +1,16 @@
 """Test deduplication utilities."""
 
-import pytest
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
+import pytest
+
+from app.models.flight import FlightDeal
 from app.utils import (
     cleanup_expired_deals,
     generate_deal_hash,
     is_flight_seen_recently,
     mark_flight_seen,
 )
-from app.models.flight import FlightDeal
 
 
 def test_generate_deal_hash():
@@ -26,7 +27,7 @@ def test_generate_deal_hash():
 @pytest.mark.asyncio
 async def test_mark_flight_seen():
     """Test marking flight as seen."""
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
         deal = FlightDeal(
@@ -54,10 +55,10 @@ async def test_mark_flight_seen():
 @pytest.mark.asyncio
 async def test_is_flight_seen_recently_true():
     """Test is_flight_seen_recently when flight was seen."""
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = FlightDeal(
             route_id="test_route",
             origin="MCI",
@@ -70,11 +71,11 @@ async def test_is_flight_seen_recently_true():
             price_drop_percent=40.0,
             deal_type="flash_sale",
             booking_url="https://example.com",
-            seen_at=datetime.utcnow(),
-            expired_at=datetime.utcnow() + timedelta(hours=12),
+            seen_at=datetime.now(UTC),
+            expired_at=datetime.now(UTC) + timedelta(hours=12),
         )
 
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         is_seen = await is_flight_seen_recently(mock_session, "test_route")
 
@@ -84,13 +85,13 @@ async def test_is_flight_seen_recently_true():
 @pytest.mark.asyncio
 async def test_is_flight_seen_recently_false():
     """Test is_flight_seen_recently when flight not seen."""
-    from unittest.mock import AsyncMock, patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
 
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         is_seen = await is_flight_seen_recently(mock_session, "test_route")
 
@@ -100,7 +101,7 @@ async def test_is_flight_seen_recently_false():
 @pytest.mark.asyncio
 async def test_cleanup_expired_deals():
     """Test cleanup of expired deals."""
-    from unittest.mock import AsyncMock, patch, MagicMock
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     with patch("sqlalchemy.ext.asyncio.AsyncSession") as mock_session:
         expired_deal = FlightDeal(
@@ -115,12 +116,12 @@ async def test_cleanup_expired_deals():
             price_drop_percent=40.0,
             deal_type="flash_sale",
             booking_url="https://example.com",
-            expired_at=datetime.utcnow() - timedelta(hours=1),
+            expired_at=datetime.now(UTC) - timedelta(hours=1),
         )
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = [expired_deal]
-        mock_session.execute.return_value = mock_result
+        mock_session.execute = AsyncMock(return_value=mock_result)
         mock_session.delete = AsyncMock()
         mock_session.commit = AsyncMock()
 

@@ -2,8 +2,7 @@
 
 import hashlib
 import logging
-from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +28,7 @@ async def calculate_median_price(
     days_back: int = 30,
 ) -> float:
     """Calculate median price for a route over the last N days."""
-    cutoff = datetime.utcnow() - timedelta(days=days_back)
+    cutoff = datetime.now(UTC) - timedelta(days=days_back)
 
     query = (
         select(FlightDeal.original_price_usd)
@@ -60,7 +59,7 @@ async def calculate_median_price(
 def detect_deal(
     current_price: float,
     median_price: float,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Detect if a flight is a deal based on price thresholds."""
     if current_price >= median_price:
         return False, None

@@ -1,27 +1,31 @@
 """Scheduler job implementations."""
 
+import json
 import logging
-from datetime import datetime, timedelta
-from typing import List
+import subprocess
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from sqlalchemy import select
+import yaml
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import AmadeusClient, DuffelClient
 from app.alert import telegram_bot
+from app.api import AmadeusClient, DuffelClient, FliClient
 from app.config import config
 from app.database import AsyncSessionLocal
-from app.models.flight import FlightDeal, AlertHistory
+from app.models.flight import AlertHistory, FlightDeal
 from app.models.job import JobRun
+from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
 from app.utils.price_analysis import (
     calculate_median_price,
     calculate_price_drop,
     detect_deal,
     generate_route_id,
 )
-from app.utils.deduplication import is_flight_seen_recently, mark_flight_seen
 
 logger = logging.getLogger(__name__)
+
+FLI_BIN = Path("/root/.local/bin/fli")
 
 
 async def run_regular_sweep() -> None:
@@ -39,7 +43,7 @@ async def run_regular_sweep() -> None:
                     # Check dates for next 90 days
                     for day_offset in range(0, config.app.look_ahead_days, 7):  # Weekly checks
                         departure_date = (
-                            datetime.utcnow() + timedelta(days=day_offset)
+                            datetime.now(UTC) + timedelta(days=day_offset)
                         ).strftime("%Y-%m-%d")
 
                         deals = await _scan_route(
@@ -104,7 +108,7 @@ async def run_mistake_sweep() -> None:
                 # Check next 30 days daily
                 for day_offset in range(0, 30):
                     departure_date = (
-                        datetime.utcnow() + timedelta(days=day_offset)
+                        datetime.now(UTC) + timedelta(days=day_offset)
                     ).strftime("%Y-%m-%d")
 
                     deals = await _scan_route(
@@ -153,7 +157,7 @@ async def _scan_route(
     destination: str,
     departure_date: str,
     amadeus_priority: bool = True,
-) -> List[FlightDeal]:
+) -> list[FlightDeal]:
     """Scan a route for deals."""
     deals = []
     route_id = generate_route_id(origin, destination, departure_date, "")
@@ -167,7 +171,7 @@ async def _scan_route(
         session, origin, destination, config.app.look_back_days
     )
 
-    # Try Amadeus first
+    # Try Amadeus first, then Duffel, then fli
     flights = []
     try:
         amadeus = AmadeusClient()
@@ -182,8 +186,15 @@ async def _scan_route(
                 origin, destination, departure_date, config.app.max_results_per_route
             )
         except Exception as e2:
-            logger.error(f"Duffel search also failed: {e2}")
-            return deals
+            logger.warning(f"Duffel search also failed: {e2}, trying fli")
+            try:
+                fli = FliClient()
+                flights = await fli.search_flights(
+                    origin, destination, departure_date, config.app.max_results_per_route
+                )
+            except Exception as e3:
+                logger.error(f"fli search also failed: {e3}")
+                return deals
 
     # Check each flight for deals
     for flight in flights:
@@ -248,7 +259,7 @@ async def _complete_job_run(
     alerts_sent: int,
 ) -> None:
     """Complete a job run record."""
-    job_run.completed_at = datetime.utcnow()
+    job_run.completed_at = datetime.now(UTC)
     job_run.duration_seconds = (
         (job_run.completed_at - job_run.started_at).total_seconds()
     )
@@ -263,7 +274,7 @@ async def _complete_job_run(
 
 async def _fail_job_run(job_run: JobRun, error_message: str) -> None:
     """Fail a job run record."""
-    job_run.completed_at = datetime.utcnow()
+    job_run.completed_at = datetime.now(UTC)
     job_run.duration_seconds = (
         (job_run.completed_at - job_run.started_at).total_seconds()
     )
@@ -273,3 +284,175 @@ async def _fail_job_run(job_run: JobRun, error_message: str) -> None:
     async with AsyncSessionLocal() as session:
         session.add(job_run)
         await session.commit()
+
+
+async def run_fli_sweep() -> None:
+    """Run fli-native flight deal sweep.
+
+    Uses `fli dates` to efficiently find cheap departure dates across a range,
+    then fetches detailed flight info for the cheapest dates with `fli flights`.
+    Sends Telegram alerts for deals below configured thresholds.
+
+    Routes are loaded from config/routes.yaml if it exists, otherwise falls back
+    to home_airports × destinations from app config.
+    """
+    logger.info("Starting fli-native flight deal sweep")
+    job_run = await _start_job_run("fli_sweep")
+
+    try:
+        routes = _load_routes()
+        deals_detected = 0
+        alerts_sent = 0
+        checked = 0
+
+        for origin, destination in routes:
+            try:
+                dates = await _find_cheap_dates_fli(origin, destination)
+                for date_info in dates:
+                    checked += 1
+                    # Skip if already seen recently
+                    route_id = generate_route_id(
+                        origin, destination, date_info["departure_date"], ""
+                    )
+                    async with AsyncSessionLocal() as session:
+                        if await is_flight_seen_recently(session, route_id):
+                            continue
+
+                    # Get median price for deal detection
+                    async with AsyncSessionLocal() as session:
+                        median_price = await calculate_median_price(
+                            session, origin, destination, config.app.look_back_days
+                        )
+
+                    price = date_info["price"]
+                    if price < config.app.min_price_usd:
+                        continue
+
+                    # Detect deal
+                    is_deal, deal_type = detect_deal(price, median_price)
+                    if not is_deal:
+                        continue
+
+                    price_drop = calculate_price_drop(price, median_price)
+                    deal = FlightDeal(
+                        route_id=route_id,
+                        origin=origin,
+                        destination=destination,
+                        departure_date=date_info["departure_date"],
+                        airline=date_info.get("airline", "Multiple"),
+                        flight_numbers=date_info.get("flight_numbers", ""),
+                        original_price_usd=median_price,
+                        current_price_usd=price,
+                        price_drop_percent=price_drop,
+                        deal_type=deal_type,
+                        booking_url=date_info.get(
+                            "booking_url",
+                            f"https://www.google.com/travel/flights?q="
+                            f"Flights+from+{origin}+to+{destination}"
+                        ),
+                    )
+
+                    async with AsyncSessionLocal() as session:
+                        session.add(deal)
+                        await session.commit()
+                        await session.refresh(deal)
+                        await mark_flight_seen(session, deal)
+
+                    deals_detected += 1
+                    telegram_message_id = await telegram_bot.send_alert(deal)
+
+                    async with AsyncSessionLocal() as session:
+                        alert = AlertHistory(
+                            flight_deal_id=deal.id,
+                            telegram_message_id=telegram_message_id or None,
+                            status="sent" if telegram_message_id else "failed",
+                            error_message=(
+                                None if telegram_message_id
+                                else "Failed to send Telegram alert"
+                            ),
+                        )
+                        session.add(alert)
+                        await session.commit()
+
+                    if telegram_message_id:
+                        alerts_sent += 1
+
+            except Exception as e:
+                logger.warning(f"Failed to scan route {origin}→{destination}: {e}")
+                continue
+
+        await _complete_job_run(job_run, deals_detected, alerts_sent)
+        logger.info(
+            f"fli sweep complete: checked {checked} dates, "
+            f"{deals_detected} deals, {alerts_sent} alerts"
+        )
+
+    except Exception as e:
+        logger.error(f"fli sweep failed: {e}")
+        await _fail_job_run(job_run, str(e))
+
+
+async def _find_cheap_dates_fli(
+    origin: str,
+    destination: str,
+    days_ahead: int = 60,
+) -> list[dict]:
+    """Find cheap dates for a route using `fli dates`.
+
+    Returns dates sorted by price (lowest first), up to 30 results.
+    """
+    from_date = datetime.now(UTC).strftime("%Y-%m-%d")
+    to_date = (datetime.now(UTC) + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+
+    if not FLI_BIN.exists():
+        logger.warning(f"fli not found at {FLI_BIN}, skipping {origin}→{destination}")
+        return []
+
+    try:
+        result = subprocess.run(
+            [
+                str(FLI_BIN), "dates", origin, destination,
+                "--from", from_date,
+                "--to", to_date,
+                "--sort",
+                "--format", "json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning(f"fli dates timed out for {origin}→{destination}")
+        return []
+
+    if result.returncode != 0:
+        logger.warning(f"fli dates failed for {origin}→{destination}: {result.stderr}")
+        return []
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return []
+
+    dates = data.get("dates", []) or []
+    # Take top 30 cheapest dates
+    return dates[:30]
+
+
+def _load_routes() -> list[tuple]:
+    """Load route pairs from config/routes.yaml, or fall back to config."""
+    routes_path = Path("config/routes.yaml")
+    if routes_path.exists():
+        with open(routes_path) as f:
+            data = yaml.safe_load(f) or {}
+        routes = data.get("routes", [])
+        if routes:
+            return [(r["origin"], r["destination"]) for r in routes]
+
+    # Fall back to cross-product of home_airports × destinations
+    routes = []
+    for origin in config.app.home_airports:
+        for destination in config.app.destinations:
+            if origin != destination:
+                routes.append((origin, destination))
+    return routes

@@ -2,8 +2,7 @@
 
 import hashlib
 import logging
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +29,7 @@ async def mark_flight_seen(
     flight_deal: FlightDeal,
 ) -> None:
     """Mark a flight as seen to prevent duplicate alerts."""
-    flight_deal.expired_at = datetime.utcnow() + timedelta(hours=24)
+    flight_deal.expired_at = datetime.now(UTC) + timedelta(hours=24)
     session.add(flight_deal)
     await session.commit()
 
@@ -41,13 +40,13 @@ async def is_flight_seen_recently(
     hours: int = 24,
 ) -> bool:
     """Check if a flight was seen in the last N hours."""
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
     query = (
         select(FlightDeal)
         .where(FlightDeal.route_id == route_id)
         .where(FlightDeal.seen_at >= cutoff)
-        .where(FlightDeal.expired_at > datetime.utcnow())
+        .where(FlightDeal.expired_at > datetime.now(UTC))
         .limit(1)
     )
 
@@ -59,7 +58,7 @@ async def cleanup_expired_deals(
     session: AsyncSession,
 ) -> int:
     """Clean up expired flight deals from database."""
-    query = select(FlightDeal).where(FlightDeal.expired_at < datetime.utcnow())
+    query = select(FlightDeal).where(FlightDeal.expired_at < datetime.now(UTC))
     result = await session.execute(query)
     expired_deals = result.scalars().all()
 
