@@ -19,7 +19,7 @@ from app.bot import bot_handler
 from app.config import config
 from app.database import AsyncSessionLocal, close_db, init_db
 from app.job_lifecycle import reconcile_stale_job_runs
-from app.models.flight import FlightDeal
+from app.models.flight import AlertHistory, FlightDeal
 from app.models.job import JobRun
 from app.models.user import User
 from app.routes.auth import router as auth_router
@@ -364,6 +364,167 @@ async def get_deal(deal_id: int) -> dict:
             "booking_url": deal.booking_url,
             "seen_at": deal.seen_at.isoformat() if deal.seen_at else None,
             "expired_at": deal.expired_at.isoformat() if deal.expired_at else None,
+        }
+
+
+VALID_ALERT_DEAL_TYPES = {"mistake_fare", "flash_sale", "deep_flash"}
+
+
+@app.get("/alerts/history", response_model=dict)
+async def get_alert_history(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    start_date: str | None = Query(
+        default=None,
+        description="Filter alerts sent on or after this date (YYYY-MM-DD)",
+    ),
+    end_date: str | None = Query(
+        default=None,
+        description="Filter alerts sent on or before this date (YYYY-MM-DD)",
+    ),
+    deal_type: str | None = Query(
+        default=None,
+        description="Filter by deal type: 'flash_sale', 'mistake_fare', or 'deep_flash'",
+    ),
+) -> dict:
+    """List alert history with optional filtering and pagination.
+
+    Returns alerts joined with their associated flight deals, sorted by
+    most recently sent first.
+    """
+    if deal_type and deal_type not in VALID_ALERT_DEAL_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid deal_type '{deal_type}'. Must be one of: {', '.join(sorted(VALID_ALERT_DEAL_TYPES))}",
+        )
+
+    # Validate date formats early so we return 422 (not 500) on bad input.
+    start_dt = None
+    end_dt = None
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid start_date format '{start_date}'. Expected YYYY-MM-DD.",
+            )
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid end_date format '{end_date}'. Expected YYYY-MM-DD.",
+            )
+
+    async with AsyncSessionLocal() as session:
+        query = (
+            select(AlertHistory, FlightDeal)
+            .join(FlightDeal, AlertHistory.flight_deal_id == FlightDeal.id)
+            .order_by(AlertHistory.sent_at.desc())
+        )
+
+        if start_dt:
+            query = query.where(AlertHistory.sent_at >= start_dt)
+        if end_dt:
+            query = query.where(AlertHistory.sent_at <= end_dt.replace(hour=23, minute=59, second=59))
+        if deal_type:
+            query = query.where(FlightDeal.deal_type == deal_type)
+
+        # Count query (mirrors filters)
+        count_query = (
+            select(func.count())
+            .select_from(AlertHistory)
+            .join(FlightDeal, AlertHistory.flight_deal_id == FlightDeal.id)
+        )
+        if start_dt:
+            count_query = count_query.where(AlertHistory.sent_at >= start_dt)
+        if end_dt:
+            count_query = count_query.where(AlertHistory.sent_at <= end_dt.replace(hour=23, minute=59, second=59))
+        if deal_type:
+            count_query = count_query.where(FlightDeal.deal_type == deal_type)
+
+        count_result = await session.execute(count_query)
+        total = count_result.scalar() or 0
+
+        query = query.offset(offset).limit(limit)
+        result = await session.execute(query)
+        rows = result.all()
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "alerts": [
+                {
+                    "id": alert.id,
+                    "flight_deal_id": alert.flight_deal_id,
+                    "sent_at": alert.sent_at.isoformat() if alert.sent_at else None,
+                    "telegram_message_id": alert.telegram_message_id,
+                    "status": alert.status,
+                    "error_message": alert.error_message,
+                    "flight_deal": {
+                        "id": deal.id,
+                        "route_id": deal.route_id,
+                        "origin": deal.origin,
+                        "destination": deal.destination,
+                        "departure_date": deal.departure_date,
+                        "airline": deal.airline,
+                        "flight_numbers": deal.flight_numbers,
+                        "original_price_usd": deal.original_price_usd,
+                        "current_price_usd": deal.current_price_usd,
+                        "price_drop_percent": deal.price_drop_percent,
+                        "deal_type": deal.deal_type,
+                        "booking_url": deal.booking_url,
+                        "seen_at": deal.seen_at.isoformat() if deal.seen_at else None,
+                        "expired_at": deal.expired_at.isoformat() if deal.expired_at else None,
+                    },
+                }
+                for alert, deal in rows
+            ],
+        }
+
+
+@app.get("/alerts/{alert_id}", response_model=dict)
+async def get_alert(alert_id: int) -> dict:
+    """Get a single alert by ID with its associated flight deal."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(AlertHistory, FlightDeal)
+            .join(FlightDeal, AlertHistory.flight_deal_id == FlightDeal.id)
+            .where(AlertHistory.id == alert_id)
+        )
+        row = result.first()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Alert not found")
+
+        alert, deal = row
+
+        return {
+            "id": alert.id,
+            "flight_deal_id": alert.flight_deal_id,
+            "sent_at": alert.sent_at.isoformat() if alert.sent_at else None,
+            "telegram_message_id": alert.telegram_message_id,
+            "status": alert.status,
+            "error_message": alert.error_message,
+            "flight_deal": {
+                "id": deal.id,
+                "route_id": deal.route_id,
+                "origin": deal.origin,
+                "destination": deal.destination,
+                "departure_date": deal.departure_date,
+                "airline": deal.airline,
+                "flight_numbers": deal.flight_numbers,
+                "original_price_usd": deal.original_price_usd,
+                "current_price_usd": deal.current_price_usd,
+                "price_drop_percent": deal.price_drop_percent,
+                "deal_type": deal.deal_type,
+                "booking_url": deal.booking_url,
+                "seen_at": deal.seen_at.isoformat() if deal.seen_at else None,
+                "expired_at": deal.expired_at.isoformat() if deal.expired_at else None,
+            },
         }
 
 
