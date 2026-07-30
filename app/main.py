@@ -100,6 +100,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("No TELEGRAM_BOT_TOKEN set; skipping Telegram boot check.")
 
+    # Warn at startup if fli is not importable (phantom dependency check).
+    try:
+        from fli.models import Airport  # noqa: F401
+    except ImportError:
+        logger.warning(
+            "fli package is not installed — flight searches will fail. "
+            "Run: pip install flights"
+        )
+
     setup_jobs()
     start_scheduler()
     # Start interactive Telegram bot polling (best-effort, never blocks boot).
