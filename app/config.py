@@ -112,6 +112,10 @@ class AppConfig(BaseSettings):
 
     cache_ttl_minutes: int = 360
 
+    # Maximum number of concurrent route scans during a sweep. Prevents a
+    # single sweep from overwhelming the system or hitting rate limits.
+    max_concurrent_scans: int = 10
+
     # When fli (the free source) errors, fall back to paid providers.
     # Disabled by default to avoid burning paid quota on transient fli hiccups;
     # only genuine emptiness (no results) is considered a real miss.
