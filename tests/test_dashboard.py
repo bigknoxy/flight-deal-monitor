@@ -568,6 +568,7 @@ class TestNotifierWarningBanner:
                 "slack": False,
                 "discord": False,
                 "any_configured": False,
+                "partially_configured": [],
             }
             response = await client.get("/dashboard")
             assert response.status_code == 200
@@ -594,7 +595,276 @@ class TestNotifierWarningBanner:
                 "slack": False,
                 "discord": False,
                 "any_configured": True,
+                "partially_configured": [],
             }
             response = await client.get("/dashboard")
             assert response.status_code == 200
             assert "No alert channels configured" not in response.text
+
+    @pytest.mark.asyncio
+    async def test_dashboard_shows_partial_config_warning(
+        self, client, mock_db_empty, mock_auth
+    ):
+        """Dashboard shows partially-configured warning when a channel has missing fields."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.AsyncSessionLocal", return_value=mock_db_empty),
+            patch("app.routes.dashboard.get_scheduler_status") as mock_status,
+            patch("app.routes.dashboard.config.notifier_status") as mock_notifier,
+        ):
+            mock_status.return_value = {
+                "running": True,
+                "jobs": [],
+                "job_count": 0,
+            }
+            mock_notifier.return_value = {
+                "telegram": False,
+                "email": False,
+                "slack": False,
+                "discord": False,
+                "any_configured": False,
+                "partially_configured": ["telegram"],
+            }
+            response = await client.get("/dashboard")
+            assert response.status_code == 200
+            assert "Partially configured alert channels" in response.text
+            assert "telegram" in response.text
+            assert "No alert channels configured" not in response.text
+
+
+class TestDetectionHealthBanner:
+    """Tests for the detection-health banner on the dashboard index."""
+
+    @pytest.mark.asyncio
+    async def test_detection_status_helper_no_success_returns_stale(self):
+        """_get_detection_status returns is_stale=True when no successful JobRuns."""
+        from app.routes.dashboard import _get_detection_status
+
+        session = AsyncMock()
+        session.__aenter__.return_value = session
+        session.__aexit__.return_value = None
+        # First query (JobRun): no success. Per-route count queries: all 0.
+        session.execute = AsyncMock(
+            side_effect=[
+                MagicMock(scalar_one_or_none=MagicMock(return_value=None)),
+            ]
+            + [
+                MagicMock(scalar=MagicMock(return_value=0))
+                for _ in range(len(_configured_route_pairs()))
+            ]
+        )
+        with patch(
+            "app.routes.dashboard.AsyncSessionLocal", return_value=session
+        ):
+            result = await _get_detection_status()
+        assert result["last_success_at"] is None
+        assert result["last_success_age_hours"] is None
+        assert result["is_stale"] is True
+        assert len(result["routes_with_zero_deals"]) == len(
+            _configured_route_pairs()
+        )
+
+    @pytest.mark.asyncio
+    async def test_detection_status_helper_recent_success_not_stale(self):
+        """_get_detection_status returns is_stale=False when scan recent + routes have deals."""
+        from datetime import datetime, timedelta
+
+        from app.routes.dashboard import _get_detection_status
+
+        recent = datetime.utcnow() - timedelta(minutes=10)
+
+        session = AsyncMock()
+        session.__aenter__.return_value = session
+        session.__aexit__.return_value = None
+        n_routes = len(_configured_route_pairs())
+        session.execute = AsyncMock(
+            side_effect=[
+                MagicMock(
+                    scalar_one_or_none=MagicMock(
+                        return_value=MagicMock(
+                            completed_at=recent, started_at=recent
+                        )
+                    )
+                ),
+            ]
+            + [MagicMock(scalar=MagicMock(return_value=5)) for _ in range(n_routes)]
+        )
+        with patch(
+            "app.routes.dashboard.AsyncSessionLocal", return_value=session
+        ):
+            result = await _get_detection_status()
+        assert result["last_success_at"] == recent
+        assert result["last_success_age_hours"] is not None
+        assert result["last_success_age_hours"] < 1.0
+        assert result["routes_with_zero_deals"] == []
+        assert result["is_stale"] is False
+
+    @pytest.mark.asyncio
+    async def test_dashboard_shows_detection_warning_when_stale(
+        self, client, mock_db_empty, mock_auth
+    ):
+        """Dashboard renders banner when detection_status.is_stale=True."""
+        stale_status = {
+            "last_success_at": None,
+            "last_success_age_hours": None,
+            "routes_with_zero_deals": ["MCI-JFK"],
+            "stale_scan_hours": 6,
+            "stale_route_days": 7,
+            "is_stale": True,
+        }
+        with (
+            mock_auth,
+            patch(
+                "app.routes.dashboard.AsyncSessionLocal", return_value=mock_db_empty
+            ),
+            patch("app.routes.dashboard.get_scheduler_status") as mock_status,
+            patch(
+                "app.routes.dashboard._get_detection_status",
+                return_value=stale_status,
+            ),
+        ):
+            mock_status.return_value = {
+                "running": True,
+                "jobs": [],
+                "job_count": 0,
+            }
+            response = await client.get("/dashboard")
+            assert response.status_code == 200
+            assert "Detection health needs attention" in response.text
+            assert "No successful scans recorded yet" in response.text
+            assert "MCI-JFK" in response.text
+
+    @pytest.mark.asyncio
+    async def test_dashboard_no_detection_warning_when_healthy(
+        self, client, mock_db_empty, mock_auth
+    ):
+        """Dashboard does NOT render banner when detection_status.is_stale=False."""
+        from datetime import datetime, timedelta
+
+        recent = datetime.utcnow() - timedelta(minutes=10)
+        healthy_status = {
+            "last_success_at": recent,
+            "last_success_age_hours": 0.2,
+            "routes_with_zero_deals": [],
+            "stale_scan_hours": 6,
+            "stale_route_days": 7,
+            "is_stale": False,
+        }
+        with (
+            mock_auth,
+            patch(
+                "app.routes.dashboard.AsyncSessionLocal", return_value=mock_db_empty
+            ),
+            patch("app.routes.dashboard.get_scheduler_status") as mock_status,
+            patch(
+                "app.routes.dashboard._get_detection_status",
+                return_value=healthy_status,
+            ),
+        ):
+            mock_status.return_value = {
+                "running": True,
+                "jobs": [],
+                "job_count": 0,
+            }
+            response = await client.get("/dashboard")
+            assert response.status_code == 200
+            assert "Detection health needs attention" not in response.text
+
+
+class TestSendTestAlerts:
+    """Tests for the POST /dashboard/settings/test-alerts endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_test_alerts_all_ok(self, client, mock_auth):
+        """All configured notifiers succeed → per_channel all 'ok', any_ok=True."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.config.notifier_status") as mock_status,
+            patch("app.alert.telegram_bot.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.email.email_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.slack.slack_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.discord.discord_notifier.test_connection", new=AsyncMock(return_value=True)),
+        ):
+            mock_status.return_value = {
+                "telegram": True,
+                "email": True,
+                "slack": True,
+                "discord": True,
+                "any_configured": True,
+                "partially_configured": [],
+            }
+            response = await client.post("/dashboard/settings/test-alerts")
+            assert response.status_code == 200
+            body = response.text
+            # Per-channel row labels show each channel name (capitalized) + <strong>OK</strong>.
+            assert "Telegram" in body
+            assert "Email" in body
+            assert "Slack" in body
+            assert "Discord" in body
+            # 4 notifiers all reported ok
+            assert body.count("OK") == 4
+            assert "not configured" not in body
+            assert "failed" not in body
+
+    @pytest.mark.asyncio
+    async def test_test_alerts_unconfigured_channels_show_not_configured(
+        self, client, mock_auth
+    ):
+        """Channels with status[chan]=False render as 'not configured', not 'failed'."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.config.notifier_status") as mock_status,
+            patch("app.alert.telegram_bot.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.email.email_notifier.test_connection", new=AsyncMock(return_value=False)),
+            patch("app.notifiers.slack.slack_notifier.test_connection", new=AsyncMock(return_value=False)),
+            patch("app.notifiers.discord.discord_notifier.test_connection", new=AsyncMock(return_value=False)),
+        ):
+            mock_status.return_value = {
+                "telegram": True,
+                "email": False,
+                "slack": False,
+                "discord": False,
+                "any_configured": True,
+                "partially_configured": [],
+            }
+            response = await client.post("/dashboard/settings/test-alerts")
+            assert response.status_code == 200
+            body = response.text
+            # Telegram is configured and ok → shows OK
+            assert "OK" in body
+            # Other three channels are unconfigured → 'not configured' label
+            assert body.count("not configured") == 3
+
+    @pytest.mark.asyncio
+    async def test_test_alerts_exception_marks_error(self, client, mock_auth):
+        """A notifier throwing an exception renders as 'error', not 'failed'."""
+        with (
+            mock_auth,
+            patch("app.routes.dashboard.config.notifier_status") as mock_status,
+            patch("app.alert.telegram_bot.test_connection", new=AsyncMock(side_effect=RuntimeError("boom"))),
+            patch("app.notifiers.email.email_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.slack.slack_notifier.test_connection", new=AsyncMock(return_value=True)),
+            patch("app.notifiers.discord.discord_notifier.test_connection", new=AsyncMock(return_value=True)),
+        ):
+            mock_status.return_value = {
+                "telegram": True,
+                "email": True,
+                "slack": True,
+                "discord": True,
+                "any_configured": True,
+                "partially_configured": [],
+            }
+            response = await client.post("/dashboard/settings/test-alerts")
+            assert response.status_code == 200
+            body = response.text
+            assert "error" in body.lower()
+            assert "boom" not in body  # don't leak raw exception text to UI
+
+
+def _configured_route_pairs():
+    """Helper returning list of (origin, dest) configured in app config (test-time)."""
+    from app.config import config
+
+    return [
+        (o, d) for o in config.app.home_airports for d in config.app.destinations
+    ]

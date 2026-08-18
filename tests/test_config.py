@@ -231,3 +231,38 @@ class TestNotifierStatus:
         assert status["telegram"] is True
         assert status["slack"] is True
         assert status["any_configured"] is True
+
+    def test_notifier_status_telegram_partially_configured(self):
+        """Telegram token without chat_id is flagged partially_configured."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.telegram_bot_token = "token_only"
+        # chat_id left empty
+        status = cfg.notifier_status()
+        assert status["telegram"] is False
+        assert status["any_configured"] is False
+        assert "telegram" in status["partially_configured"]
+
+    def test_notifier_status_email_partially_configured(self):
+        """smtp_host without smtp_user is flagged partially_configured."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.smtp_host = "smtp.example.com"
+        # smtp_user left empty
+        status = cfg.notifier_status()
+        assert status["email"] is False
+        assert status["any_configured"] is False
+        assert "email" in status["partially_configured"]
+
+    def test_notifier_status_full_config_has_no_partial(self):
+        """Fully-configured channels do not appear in partially_configured."""
+        cfg = Config(app_config_path="/tmp/nonexistent_app.yaml")
+        cfg.env = EnvConfig(_env_file=None)
+        cfg.env.telegram_bot_token = "t"
+        cfg.env.telegram_chat_id = "c"
+        cfg.env.smtp_host = "smtp.example.com"
+        cfg.env.smtp_user = "u"
+        status = cfg.notifier_status()
+        assert status["telegram"] is True
+        assert status["email"] is True
+        assert status["partially_configured"] == []
