@@ -1,0 +1,30 @@
+<div id="test-alert-results"
+     {% if any_ok %}style="background: rgba(76, 175, 80, 0.08); border: 1px solid var(--success, #4CAF50);"{% else %}style="background: rgba(255, 165, 2, 0.08); border: 1px solid var(--warning);"{% endif %}
+     class="card" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 8000)">
+    <div class="card-header">Test Alert Results</div>
+    <ul style="list-style: none; padding: 0; margin: 0.5rem 0;">
+        {% for channel, result in per_channel.items() %}
+        <li style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+            {% if result == "ok" %}
+            <span style="color: #4CAF50;">&#10004;</span>
+            <span>{{ channel | capitalize }}: <strong>OK</strong> &mdash; test alert delivered.</span>
+            {% elif result == "not_configured" %}
+            <span style="color: var(--text-muted);">&#9888;</span>
+            <span>{{ channel | capitalize }}: <em>not configured</em>.</span>
+            {% elif result == "error" %}
+            <span style="color: var(--danger, #dc3545);">&#10008;</span>
+            <span>{{ channel | capitalize }}: <strong>error</strong> &mdash; check credentials and try again.</span>
+            {% else %}
+            <span style="color: var(--danger, #dc3545);">&#10008;</span>
+            <span>{{ channel | capitalize }}: <strong>failed</strong> &mdash; channel reached but rejected the ping.</span>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% if not any_ok %}
+    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">
+        No notifier succeeded. Verify your credentials in the form above and try again,
+        or check the app logs for the underlying error.
+    </p>
+    {% endif %}
+</div>
