@@ -1,5 +1,6 @@
 """Dashboard routes for the web UI."""
 
+import asyncio
 import logging
 import os
 from datetime import datetime
@@ -18,6 +19,9 @@ from app.scheduler import get_scheduler_status
 from app.templates import render
 
 logger = logging.getLogger(__name__)
+
+# Lock to prevent concurrent settings saves from racing on file writes.
+_settings_lock = asyncio.Lock()
 
 router = APIRouter()
 
@@ -487,6 +491,26 @@ async def dashboard_settings(
     )
 
 
+def _atomic_write(path: str, content: str) -> None:
+    """Write content to a temp file, then atomically replace the target.
+
+    Prevents partial/corrupt writes on crash and avoids concurrent-write races
+    when two settings saves overlap.
+    """
+    dirname = os.path.dirname(path) or "."
+    tmp_path = os.path.join(dirname, f".tmp.{os.path.basename(path)}.{os.getpid()}")
+    try:
+        with open(tmp_path, "w") as f:
+            f.write(content)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 @router.post("/dashboard/settings/save")
 async def dashboard_settings_save(
     request: Request,
@@ -524,113 +548,112 @@ async def dashboard_settings_save(
     job_coalesce: str = Form("true"),
 ) -> HTMLResponse:
     """Save all settings to config/app.yaml and .env."""
-    try:
-        # --- Save app.yaml ---
-        yaml_path = "config/app.yaml"
-        if os.path.exists(yaml_path):
-            with open(yaml_path) as f:
-                data = yaml.safe_load(f) or {}
-        else:
-            data = {}
+    async with _settings_lock:
+        try:
+            # --- Save app.yaml ---
+            yaml_path = "config/app.yaml"
+            if os.path.exists(yaml_path):
+                with open(yaml_path) as f:
+                    data = yaml.safe_load(f) or {}
+            else:
+                data = {}
 
-        airports = [a.strip().upper() for a in home_airports.split(",") if a.strip()]
+            airports = [a.strip().upper() for a in home_airports.split(",") if a.strip()]
 
-        data["app"] = {
-            "home_airports": airports,
-            "destinations": config.app.destinations,
-            "deal_thresholds": {
-                "mistake_fare_percent": mistake_fare_percent / 100.0,
-                "deep_flash_percent": deep_flash_percent / 100.0,
-                "flash_sale_percent": flash_sale_percent / 100.0,
-            },
-            "regular_sweep_interval": regular_sweep_interval,
-            "mistake_sweep_interval": mistake_sweep_interval,
-            "route_multipliers": {
-                "domestic": mult_domestic,
-                "transatlantic": mult_transatlantic,
-                "transpacific": mult_transpacific,
-                "latin_america": mult_latin_america,
-                "europe": mult_europe,
-            },
-            "cache_ttl_minutes": cache_ttl_minutes,
-            "max_results_per_route": max_results_per_route,
-            "look_ahead_days": look_ahead_days,
-            "look_back_days": config.app.look_back_days,
-            "min_price_usd": min_price_usd,
-            "max_alerts_per_hour": max_alerts_per_hour,
-            "job_coalesce": job_coalesce == "true",
-            "long_weekend": {
-                "enabled": long_weekend_enabled == "true",
-                "interval_minutes": long_weekend_interval,
-                "look_ahead_months": long_weekend_look_ahead,
-            },
-            "flexible_dates": {
-                "enabled": config.app.flexible_dates.enabled,
-                "range_days": config.app.flexible_dates.range_days,
-            },
-            "multi_city": {
-                "enabled": config.app.multi_city.enabled,
-                "max_stops": config.app.multi_city.max_stops,
-            },
-        }
+            data["app"] = {
+                "home_airports": airports,
+                "destinations": config.app.destinations,
+                "deal_thresholds": {
+                    "mistake_fare_percent": mistake_fare_percent / 100.0,
+                    "deep_flash_percent": deep_flash_percent / 100.0,
+                    "flash_sale_percent": flash_sale_percent / 100.0,
+                },
+                "regular_sweep_interval": regular_sweep_interval,
+                "mistake_sweep_interval": mistake_sweep_interval,
+                "route_multipliers": {
+                    "domestic": mult_domestic,
+                    "transatlantic": mult_transatlantic,
+                    "transpacific": mult_transpacific,
+                    "latin_america": mult_latin_america,
+                    "europe": mult_europe,
+                },
+                "cache_ttl_minutes": cache_ttl_minutes,
+                "max_results_per_route": max_results_per_route,
+                "look_ahead_days": look_ahead_days,
+                "look_back_days": config.app.look_back_days,
+                "min_price_usd": min_price_usd,
+                "max_alerts_per_hour": max_alerts_per_hour,
+                "job_coalesce": job_coalesce == "true",
+                "long_weekend": {
+                    "enabled": long_weekend_enabled == "true",
+                    "interval_minutes": long_weekend_interval,
+                    "look_ahead_months": long_weekend_look_ahead,
+                },
+                "flexible_dates": {
+                    "enabled": config.app.flexible_dates.enabled,
+                    "range_days": config.app.flexible_dates.range_days,
+                },
+                "multi_city": {
+                    "enabled": config.app.multi_city.enabled,
+                    "max_stops": config.app.multi_city.max_stops,
+                },
+            }
 
-        with open(yaml_path, "w") as f:
-            yaml.dump(data, f, default_flow_style=False)
+            _atomic_write(yaml_path, yaml.dump(data, default_flow_style=False))
 
-        _reload_config()
+            _reload_config()
 
-        # --- Save .env ---
-        env_path = ".env"
-        env_lines = []
-        env_updates = {
-            "TELEGRAM_BOT_TOKEN": telegram_bot_token,
-            "TELEGRAM_CHAT_ID": telegram_chat_id,
-            "SMTP_HOST": smtp_host,
-            "SMTP_PORT": str(smtp_port),
-            "SMTP_USER": smtp_user,
-            "EMAIL_FROM": email_from,
-            "EMAIL_TO": email_to,
-            "SLACK_WEBHOOK_URL": slack_webhook_url,
-            "DISCORD_WEBHOOK_URL": discord_webhook_url,
-            "LOG_LEVEL": log_level.upper(),
-        }
-        if smtp_pass:
-            env_updates["SMTP_PASS"] = smtp_pass
+            # --- Save .env ---
+            env_path = ".env"
+            env_lines = []
+            env_updates = {
+                "TELEGRAM_BOT_TOKEN": telegram_bot_token,
+                "TELEGRAM_CHAT_ID": telegram_chat_id,
+                "SMTP_HOST": smtp_host,
+                "SMTP_PORT": str(smtp_port),
+                "SMTP_USER": smtp_user,
+                "EMAIL_FROM": email_from,
+                "EMAIL_TO": email_to,
+                "SLACK_WEBHOOK_URL": slack_webhook_url,
+                "DISCORD_WEBHOOK_URL": discord_webhook_url,
+                "LOG_LEVEL": log_level.upper(),
+            }
+            if smtp_pass:
+                env_updates["SMTP_PASS"] = smtp_pass
 
-        if os.path.exists(env_path):
-            with open(env_path) as f:
-                for line in f:
-                    stripped = line.strip()
-                    if "=" in stripped and not stripped.startswith("#"):
-                        key = stripped.split("=", 1)[0].strip()
-                        if key in env_updates:
-                            val = env_updates.pop(key)
-                            if val:
-                                env_lines.append(f"{key}={val}\n")
-                            continue
-                    env_lines.append(line)
+            if os.path.exists(env_path):
+                with open(env_path) as f:
+                    for line in f:
+                        stripped = line.strip()
+                        if "=" in stripped and not stripped.startswith("#"):
+                            key = stripped.split("=", 1)[0].strip()
+                            if key in env_updates:
+                                val = env_updates.pop(key)
+                                if val:
+                                    env_lines.append(f"{key}={val}\n")
+                                continue
+                        env_lines.append(line)
 
-        for key, val in env_updates.items():
-            if val:
-                env_lines.append(f"{key}={val}\n")
+            for key, val in env_updates.items():
+                if val:
+                    env_lines.append(f"{key}={val}\n")
 
-        with open(env_path, "w") as f:
-            f.writelines(env_lines)
+            _atomic_write(env_path, "".join(env_lines))
 
-        # Reload env config
-        from app.config import EnvConfig  # noqa: PLC0415
+            # Reload env config
+            from app.config import EnvConfig  # noqa: PLC0415
 
-        config.env = EnvConfig()
+            config.env = EnvConfig()
 
-        # Rebuild Telegram bot with new token
-        from app.alert import telegram_bot  # noqa: PLC0415
+            # Rebuild Telegram bot with new token
+            from app.alert import telegram_bot  # noqa: PLC0415
 
-        telegram_bot.bot_token = config.env.telegram_bot_token
-        telegram_bot.chat_id = config.env.telegram_chat_id
-        telegram_bot.base_url = f"https://api.telegram.org/bot{telegram_bot.bot_token}"
+            telegram_bot.bot_token = config.env.telegram_bot_token
+            telegram_bot.chat_id = config.env.telegram_chat_id
+            telegram_bot.base_url = f"https://api.telegram.org/bot{telegram_bot.bot_token}"
 
-        return await dashboard_settings(request, user, saved=True, save_error=None)
+            return await dashboard_settings(request, user, saved=True, save_error=None)
 
-    except Exception as e:
-        logger.error(f"Failed to save settings: {e}")
-        return await dashboard_settings(request, user, saved=False, save_error=str(e))
+        except Exception as e:
+            logger.error(f"Failed to save settings: {e}")
+            return await dashboard_settings(request, user, saved=False, save_error=str(e))
