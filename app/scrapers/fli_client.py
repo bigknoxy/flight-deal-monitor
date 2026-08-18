@@ -21,9 +21,10 @@ class FLISearchError(Exception):
 def _ensure_fli_importable() -> None:
     """Make the fli package importable in this process.
 
-    fli is installed under a pipx venv rather than the app env. Prefer the
-    ``FLI_SITE_PACKAGES`` env override, then fall back to the original
-    machine-specific pipx path. Imported lazily so the parent (monitor)
+    ``flights`` is a normal pip dependency (listed in requirements.txt) and
+    lives in the regular site-packages. The ``FLI_SITE_PACKAGES`` env override
+    exists for unusual deployment layouts (e.g. pipx-managed installs where the
+    package lives outside the app venv). Imported lazily so the parent (monitor)
     process never needs fli installed — only the search subprocess does.
     """
     fli_site_packages = os.environ.get("FLI_SITE_PACKAGES", "")
@@ -39,16 +40,12 @@ def _ensure_fli_importable() -> None:
         )
         from fli.search import SearchFlights  # noqa: F401
     except ImportError:
-        sys.path.insert(
-            0, "/root/.local/pipx/venvs/flights/lib/python3.11/site-packages"
+        logger.warning(
+            "fli package not importable — flight searches will fail. "
+            "Ensure 'flights' is installed (pip install flights) or set "
+            "FLI_SITE_PACKAGES to the directory containing the fli package."
         )
-        from fli.models import (  # noqa: F401
-            Airport,
-            FlightSearchFilters,
-            FlightSegment,
-            PassengerInfo,
-        )
-        from fli.search import SearchFlights  # noqa: F401
+        raise
 
 
 def _run_fli_search(
