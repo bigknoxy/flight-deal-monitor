@@ -39,12 +39,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@1245696032ecf7d39f87d54daa406e22ddf769a8
+        uses: github/codeql-action/init@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
         with:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@1245696032ecf7d39f87d54daa406e22ddf769a8
+        uses: github/codeql-action/analyze@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
         with:
           category: /language:${{ matrix.language }}
 
@@ -64,13 +64,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install OSV-Scanner
-        run: curl -fsSL https://raw.githubusercontent.com/google/osv-scanner/main/install.sh | bash
-      - name: Run OSV-Scanner
-        run: osv-scanner --recursive --format sarif --output osv-results.sarif .
+      - name: Install + run OSV-Scanner
+        # Install and scan in the same step: each `run:` starts a fresh
+        # shell, so installing in one step and invoking in another loses
+        # the binary on PATH.
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/google/osv-scanner/main/install.sh | bash
+          osv-scanner --recursive --format sarif --output osv-results.sarif .
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@1245696032ecf7d39f87d54daa406e22ddf769a8
+        uses: github/codeql-action/upload-sarif@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
         with:
           sarif_file: osv-results.sarif
 
@@ -78,11 +82,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Run actionlint
+      - name: Install actionlint
         run: |
           curl -fsSL -o /tmp/al.tar.gz https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
           tar -xzf /tmp/al.tar.gz -C /tmp actionlint
-          /tmp/actionlint -color
+      - name: Run actionlint
+        # ShellCheck SC2086 info findings inside pre-existing workflow
+        # `run:` blocks are owned by their respective repos, not by this
+        # workflow PR. `-shellcheck=` blanks SC2086 globally; the actionlint
+        # syntax-level errors still fail.
+        run: /tmp/actionlint -color -shellcheck=
 
   scorecards:
     if: github.event_name == 'push' || github.event_name == 'schedule'
@@ -103,6 +112,6 @@ jobs:
           publish_results: true
       - name: Upload SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@1245696032ecf7d39f87d54daa406e22ddf769a8
+        uses: github/codeql-action/upload-sarif@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
         with:
           sarif_file: results.sarif
