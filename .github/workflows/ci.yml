@@ -204,6 +204,11 @@ jobs:
           # fall through to npm cache for bun.lock repos.
           node-version: '22'
           cache: ${{ steps.node-check.outputs.cache_type }}
+          # setup-node v7 auto-enables npm caching if package.json
+          # declares packageManager: npm and no explicit cache is set.
+          # When cache_type=false (no lockfile), explicitly disable
+          # auto-detection to avoid "Dependencies lock file is not found".
+          package-manager-cache: ${{ steps.node-check.outputs.cache_type != 'false' }}
       - name: Install
         if: steps.node-check.outputs.has_node == 'true'
         run: |
