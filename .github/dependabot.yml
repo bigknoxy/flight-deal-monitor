@@ -1,86 +1,69 @@
 version: 2
+# Enable Dependabot security updates: any open vulns get auto-PRs.
+# Grouped version updates keep PR noise low.
 updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "06:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "bigknoxy"
-    labels:
-      - "dependencies"
-      - "security"
     groups:
-      npm-minor:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
+      npm-dependencies:
+        patterns:
+          - "*"
     commit-message:
-      prefix: "deps"
-      prefix-development: "deps(dev)"
-      include: "scope"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "bigknoxy"
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
-      - "ci"
-    commit-message:
-      prefix: "ci"
-      include: "scope"
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "tuesday"
-      time: "06:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "bigknoxy"
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
-      - "security"
-    commit-message:
-      prefix: "deps"
-      prefix-development: "deps(dev)"
-      include: "scope"
 
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "tuesday"
-      time: "06:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "bigknoxy"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
-      - "security"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
 
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "tuesday"
-      time: "06:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "bigknoxy"
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
     labels:
       - "dependencies"
-      - "security"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
     commit-message:
-      prefix: "deps"
-      include: "scope"
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
