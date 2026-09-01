@@ -186,12 +186,12 @@ jobs:
             exit 0
           fi
           echo "has_node=true" >> "$GITHUB_OUTPUT"
-          # Detect lockfile -> cache backend. setup-node v7 supports
-          # npm/yarn/pnpm but NOT 'bun'. For bun.lock, we have to
-          # disable cache entirely (setup-node looks for package-lock.json
-          # or yarn.lock specifically — it cannot hash bun.lock).
-          # Use 'false' to disable both cache and auto-detection.
-          cache_type="false"
+          # Detect lockfile -> cache backend for setup-node v7.
+          # Valid cache values are npm/yarn/pnpm only.
+          # For bun.lock or no lockfile, emit empty string and rely on
+          # `package-manager-cache: false` in setup-node to disable
+          # caching entirely (cache: '' alone re-triggers npm auto-detect).
+          cache_type=""
           if [ -f yarn.lock ]; then
             cache_type="yarn"
           elif [ -f pnpm-lock.yaml ]; then
@@ -203,16 +203,19 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: steps.node-check.outputs.has_node == 'true'
         with:
-          # Cache only when setup-node supports the lockfile type.
-          # Omit `cache` entirely when only bun.lock or no lockfile,
-          # because setup-node rejects `cache: false` ("Caching for
-          # 'false' is not supported") and falls back to npm auto-detect
-          # which then fails on missing lockfile.
-          # `package-manager-cache: false` disables npm auto-detection
-          # triggered by package.json's packageManager field.
+          # Cache only when a lockfile setup-node understands exists.
+          # - yarn.lock  -> cache: yarn
+          # - pnpm-lock  -> cache: pnpm
+          # - package-lock.json -> cache: npm
+          # - bun.lock OR no lockfile -> omit `cache` entirely and
+          #   set `package-manager-cache: false` to disable npm
+          #   auto-detect (otherwise it fails on missing lockfile).
+          # setup-node v7 rejects `cache: false`/`cache: ''`/`cache: 'bun'`
+          # — the only safe way to disable is to omit `cache` AND
+          # disable `package-manager-cache`.
           node-version: '22'
-          cache: ${{ steps.node-check.outputs.cache_type == 'false' && '' || steps.node-check.outputs.cache_type }}
-          package-manager-cache: ${{ steps.node-check.outputs.cache_type != 'false' }}
+          cache: ${{ steps.node-check.outputs.cache_type }}
+          package-manager-cache: ${{ steps.node-check.outputs.cache_type != '' }}
       - name: Install
         if: steps.node-check.outputs.has_node == 'true'
         run: |
