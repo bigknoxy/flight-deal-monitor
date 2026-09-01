@@ -179,8 +179,10 @@ jobs:
           fi
           echo "has_node=true" >> "$GITHUB_OUTPUT"
           # Detect lockfile -> cache backend. setup-node v7 supports
-          # npm/yarn/pnpm but NOT 'bun'. Fall back to npm for bun.lock
-          # (hashFile used to drive key uniqueness).
+          # npm/yarn/pnpm but NOT 'bun'. Fall back to npm for bun.lock.
+          # setup-node v7 defaults cache to 'npm' when omitted or empty,
+          # which fails with "Dependencies lock file is not found" if
+          # there's no lockfile. Use 'false' to explicitly disable.
           if [ -f yarn.lock ]; then
             echo "cache_type=yarn" >> "$GITHUB_OUTPUT"
           elif [ -f pnpm-lock.yaml ]; then
@@ -190,9 +192,7 @@ jobs:
           elif [ -f bun.lock ]; then
             echo "cache_type=npm" >> "$GITHUB_OUTPUT"
           else
-            # No lockfile — leave cache_type unset so setup-node skips
-            # cache entirely (avoiding "Dependencies lock file is not found").
-            echo "cache_type=" >> "$GITHUB_OUTPUT"
+            echo "cache_type=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: steps.node-check.outputs.has_node == 'true'
