@@ -29,11 +29,12 @@ jobs:
         # Only check files added/modified by this PR. Pre-existing repo
         # workflows (.github/workflows/gh-pages.yml, etc.) are not ours
         # to fix. -shellcheck= blanks shellcheck info findings — actionlint's
-        # own syntax-level checks still run.
+        # own syntax-level checks still run. dependabot.yml is a Dependabot
+        # config (version: 2), not a workflow, so skip it.
         run: |
           set -e
           files=""
-          for f in ci.yml security.yml codeql.yml dependabot.yml; do
+          for f in ci.yml security.yml codeql.yml; do
             if [ -f ".github/workflows/$f" ]; then
               files="$files .github/workflows/$f"
             fi
@@ -170,9 +171,10 @@ jobs:
         with:
           # Cache only when a lockfile exists; otherwise setup-node
           # errors with "Dependencies lock file is not found".
-          # Order matters: bun.lock > yarn.lock > pnpm > npm.
+          # Note: setup-node v7 does NOT support 'bun' caching —
+          # fall through to npm cache for bun.lock repos.
           node-version: '22'
-          cache: ${{ (hashFiles('bun.lock') != '' && 'bun') || (hashFiles('yarn.lock') != '' && 'yarn') || (hashFiles('pnpm-lock.yaml') != '' && 'pnpm') || (hashFiles('package-lock.json') != '' && 'npm') || '' }}
+          cache: ${{ (hashFiles('yarn.lock') != '' && 'yarn') || (hashFiles('pnpm-lock.yaml') != '' && 'pnpm') || (hashFiles('package-lock.json') != '' && 'npm') || (hashFiles('bun.lock') != '' && 'npm') || '' }}
       - name: Install
         if: steps.node-check.outputs.has_node == 'true'
         run: |
