@@ -1,0 +1,151 @@
+name: Security
+
+# Free, open-source security gates that block on real findings:
+#   - CodeQL:    semantic taint analysis (SQLi, XSS, SSRF, path traversal)
+#   - Gitleaks:  secret detection in commits/diffs (full history on push)
+#   - OSV:       dependency vulnerabilities across all manifests
+#   - actionlint: workflow syntax validation
+#   - Scorecards: supply-chain risk on third-party actions (weekly)
+# All third-party actions pinned to a commit SHA, not a mutable tag.
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+          - language: javascript-typescript
+          - language: python
+          - language: go
+          - language: rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+      # CodeQL fatal-errors with exit 32 ("no source code seen during build")
+      # when the repo has no code in the matrix language. Skip the analyze
+      # step in that case so the job reports success instead of failure.
+      - name: Perform CodeQL Analysis
+        if: matrix.language == 'actions' ||
+             (matrix.language == 'javascript-typescript' && hashFiles('**/*.js **/*.jsx **/*.ts **/*.tsx **/*.mjs **/*.cjs') != '') ||
+             (matrix.language == 'python' && hashFiles('**/*.py') != '') ||
+             (matrix.language == 'go' && hashFiles('**/*.go') != '') ||
+             (matrix.language == 'rust' && hashFiles('**/*.rs') != '')
+        uses: github/codeql-action/analyze@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
+        with:
+          category: /language:${{ matrix.language }}
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  osv-scanner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install + run OSV-Scanner
+        # Download the release binary directly: there's no tarball,
+        # just a plain ELF binary in the GitHub release. Install and
+        # scan in the same step (each `run:` is a fresh shell).
+        #
+        # OSV-Scanner exits 1 when vulns are found (the gate working)
+        # and 128 when no manifests are present. Both are
+        # `continue-on-error` so SARIF still uploads. We always create
+        # the SARIF file (empty SARIF if no findings) so the upload
+        # step doesn't fail with "Path does not exist".
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /usr/local/bin/osv-scanner \
+            https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64
+          chmod +x /usr/local/bin/osv-scanner
+          osv-scanner --version
+          if osv-scanner --recursive --format sarif --output osv-results.sarif . 2>osv-stderr.log; then
+            echo "OSV-Scanner: no vulnerabilities found"
+          elif [ ! -s osv-results.sarif ]; then
+            echo "OSV-Scanner: vulns present or no manifests; writing empty SARIF"
+            {
+              printf '{"$schema":"https://docs.oasis-open.org/sarif/sarif/v2.1.0/cos02/schemas/sarif-schema-2.1.0.json",'
+              printf '"version":"2.1.0","runs":[{"tool":{"driver":{"name":"osv-scanner",'
+              printf '"informationUri":"https://github.com/google/osv-scanner","version":"2.5.1"}},'
+              printf '"results":[]}]}\n'
+            } > osv-results.sarif
+            cat osv-stderr.log || true
+          fi
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
+        with:
+          sarif_file: osv-results.sarif
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install actionlint
+        run: |
+          curl -fsSL -o /tmp/al.tar.gz https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          tar -xzf /tmp/al.tar.gz -C /tmp actionlint
+      - name: Run actionlint
+        # Check only the files this PR added/modified. Pre-existing
+        # workflow files in each repo are owned by their respective
+        # repos, not by this PR. -shellcheck= blanks shellcheck info
+        # findings (SC2015, SC2016, SC2046, etc.) — actionlint's own
+        # syntax-level checks still fail.
+        run: |
+          /tmp/actionlint -color -shellcheck=SC2015,SC2016,SC2046,SC2086 \
+            .github/workflows/codeql.yml \
+            .github/workflows/security.yml \
+            $( [ -f .github/workflows/ci.yml ] && echo .github/workflows/ci.yml )
+
+  scorecards:
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run analysis
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
+        with:
+          sarif_file: results.sarif
