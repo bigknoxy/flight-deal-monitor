@@ -1,11 +1,16 @@
 name: Security
 
-# Free, open-source security gates that block on real findings:
-#   - CodeQL:    semantic taint analysis (SQLi, XSS, SSRF, path traversal)
-#   - Gitleaks:  secret detection in commits/diffs (full history on push)
-#   - OSV:       dependency vulnerabilities across all manifests
-#   - actionlint: workflow syntax validation
-#   - Scorecards: supply-chain risk on third-party actions (weekly)
+# Reusable, org-wide security gates (bigknoxy/.github/security-reusable.yml):
+#   - gitleaks:            secret detection in commits/diffs
+#   - codeql:              semantic taint analysis (SQLi, XSS, SSRF, path traversal)
+#   - dependency-review:   blocks newly introduced vulnerable deps on PRs
+#   - dep-audit:           language-native dependency audit (pip-audit for Python)
+#   - trivy-fs/trivy-image: filesystem + container image scanning (has_docker)
+#
+# Repo-specific extras kept here (not covered by the reusable workflow):
+#   - OSV:         dependency vulnerabilities across all manifests
+#   - actionlint:  workflow syntax validation
+#   - Scorecards:  supply-chain risk on third-party actions (weekly)
 # All third-party actions pinned to a commit SHA, not a mutable tag.
 
 on:
@@ -18,55 +23,14 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
-  codeql:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: actions
-          - language: javascript-typescript
-          - language: python
-          - language: go
-          - language: rust
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
-        with:
-          languages: ${{ matrix.language }}
-          queries: security-extended,security-and-quality
-      # CodeQL fatal-errors with exit 32 ("no source code seen during build")
-      # when the repo has no code in the matrix language. Skip the analyze
-      # step in that case so the job reports success instead of failure.
-      - name: Perform CodeQL Analysis
-        if: matrix.language == 'actions' ||
-             (matrix.language == 'javascript-typescript' && hashFiles('**/*.js **/*.jsx **/*.ts **/*.tsx **/*.mjs **/*.cjs') != '') ||
-             (matrix.language == 'python' && hashFiles('**/*.py') != '') ||
-             (matrix.language == 'go' && hashFiles('**/*.go') != '') ||
-             (matrix.language == 'rust' && hashFiles('**/*.rs') != '')
-        uses: github/codeql-action/analyze@486fec2a3ea2626afcd8c7e9208b4f515078dd7e # codeql-bundle-v2.26.4
-        with:
-          category: /language:${{ matrix.language }}
-
-  gitleaks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+  security:
+    uses: bigknoxy/.github/.github/workflows/security-reusable.yml@main
+    with:
+      language: python
+      has_docker: true
+    secrets: inherit
 
   osv-scanner:
     runs-on: ubuntu-latest
