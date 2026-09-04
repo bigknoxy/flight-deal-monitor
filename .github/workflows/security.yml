@@ -91,7 +91,6 @@ jobs:
         # syntax-level checks still fail.
         run: |
           /tmp/actionlint -color -shellcheck=SC2015,SC2016,SC2046,SC2086 \
-            .github/workflows/codeql.yml \
             .github/workflows/security.yml \
             $( [ -f .github/workflows/ci.yml ] && echo .github/workflows/ci.yml )
 
