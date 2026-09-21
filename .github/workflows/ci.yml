@@ -138,7 +138,7 @@ jobs:
         id: rust-check
         run: |
           if [ -f Cargo.toml ]; then echo "has_rust=true" >> "$GITHUB_OUTPUT"; else echo "No Cargo.toml found, skipping Rust test."; exit 0; fi
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         if: steps.rust-check.outputs.has_rust == 'true'
         with:
           toolchain: stable
