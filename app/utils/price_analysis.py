@@ -133,7 +133,7 @@ async def record_price_observations(
         )
 
         if dep_dt is not None:
-            now = datetime.utcnow()
+            now = datetime.now(datetime.UTC)
             days_until = (dep_dt - now).days
             obs.days_until_departure = days_until
             obs.departure_month = dep_dt.month
@@ -165,6 +165,13 @@ def get_route_type(origin: str, destination: str) -> str:
     dest_us = destination.startswith("K") or destination in us_airports
     origin_eu = origin in eu_airports
     dest_eu = destination in eu_airports
+    # Check if both airports are outside all known sets
+    origin_in_known = (origin.startswith("K") or origin in us_airports or origin in eu_airports or origin in asia_airports or origin in latam_airports)
+    dest_in_known = (destination.startswith("K") or destination in us_airports or destination in eu_airports or destination in asia_airports or destination in latam_airports)
+
+    if not origin_in_known and not dest_in_known:
+        return "unknown"
+
 
     if origin_us and dest_us:
         return "domestic"
