@@ -4,7 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -148,8 +148,8 @@ async def run_regular_sweep() -> None:
                 for destination in config.app.destinations:
                     for day_offset in range(0, config.app.look_ahead_days, 7):
                         departure_date = (
-                            datetime.utcnow() + timedelta(days=day_offset)
-                        ).strftime("%Y-%m-%d")
+                        datetime.now(timezone.utc) + timedelta(days=day_offset)
+                    ).strftime("%Y-%m-%d")
                         tasks.append(
                             asyncio.create_task(
                                 _scan_route_wrapper(session, origin, destination, departure_date)
@@ -187,8 +187,8 @@ async def run_mistake_sweep() -> None:
                 for destination in config.app.destinations:
                     for day_offset in range(0, 30):
                         departure_date = (
-                            datetime.utcnow() + timedelta(days=day_offset)
-                        ).strftime("%Y-%m-%d")
+                        datetime.now(timezone.utc) + timedelta(days=day_offset)
+                    ).strftime("%Y-%m-%d")
                         tasks.append(
                             asyncio.create_task(
                                 _scan_route_wrapper(session, origin, destination, departure_date)

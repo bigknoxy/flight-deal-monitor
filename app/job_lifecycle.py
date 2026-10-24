@@ -7,7 +7,7 @@ sweep's own session is rolled back.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 

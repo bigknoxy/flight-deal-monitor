@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config
@@ -122,7 +123,6 @@ async def record_price_observations(
         if price <= 0 or price < min_price_usd:
             continue
         airline = flight.get("validatingAirlineCodes", ["Unknown"])[0]
-
         obs = PriceObservation(
             origin=origin,
             destination=destination,
@@ -141,7 +141,6 @@ async def record_price_observations(
             obs.observed_at_month = now.month
             obs.observed_at_day_of_week = now.weekday()
             obs.booking_window_bucket = booking_window_bucket(days_until)
-
         rows.append(obs)
 
     if rows:
@@ -172,7 +171,6 @@ def get_route_type(origin: str, destination: str) -> str:
     if not origin_in_known and not dest_in_known:
         return "unknown"
 
-
     if origin_us and dest_us:
         return "domestic"
     if origin_us and destination in eu_airports:
@@ -190,6 +188,10 @@ def get_route_type(origin: str, destination: str) -> str:
             return "transpacific"
         if origin in latam_airports:
             return "latin_america"
+    # If exactly one airport is in a known set and the other is unknown,
+    # do not silently default to "domestic".
+    if origin_in_known != dest_in_known:
+        return "unknown"
     return "domestic"
 
 
@@ -307,6 +309,31 @@ def detect_deal_learned(
     return True, "flash_sale"
 
 
+def detect_deal_learned_alt(
+    current_price: float,
+    percentiles: dict[int, float],
+) -> tuple[bool, str | None]:
+    """Detect deal using learned percentile thresholds.
+
+    A price at or below the 20th percentile is a mistake fare,
+    at or below the 30th is a deep flash, and at or below the 50th
+    is a flash sale. This adapts to each route+month's natural price
+    distribution without hardcoded percentage thresholds.
+    """
+    p50 = percentiles.get(50)
+    if p50 is None or current_price >= p50:
+        return False, None
+
+    p20 = percentiles.get(20)
+    p30 = percentiles.get(30)
+
+    if p20 is not None and current_price <= p20:
+        return True, "mistake_fare"
+    if p30 is not None and current_price <= p30:
+        return True, "deep_flash"
+    return True, "flash_sale"
+
+
 def calculate_price_drop(current_price: float, median_price: float) -> float:
     """Calculate price drop percentage."""
     if median_price == 0:
@@ -328,7 +355,7 @@ async def get_price_history(
             func.date(FlightDeal.seen_at).label("date"),
             func.avg(FlightDeal.original_price_usd).label("median_price"),
             func.min(FlightDeal.current_price_usd).label("lowest_price"),
-            func.count().label("sample_count"),
+            func(count()).label("sample_count"),
         )
         .where(FlightDeal.origin == origin)
         .where(FlightDeal.destination == destination)
@@ -362,7 +389,6 @@ async def get_price_history(
         }
 
     current_median = history[-1]["median_price"]
-
     if len(history) < 2:
         return {
             "route": f"{origin}-{destination}",

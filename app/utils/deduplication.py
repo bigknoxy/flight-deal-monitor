@@ -2,7 +2,7 @@
 
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +29,7 @@ async def mark_flight_seen(
     flight_deal: FlightDeal,
 ) -> None:
     """Mark a flight as seen to prevent duplicate alerts."""
-    flight_deal.expired_at = datetime.utcnow() + timedelta(hours=24)
+    flight_deal.expired_at = datetime.now(timezone.utc) + timedelta(hours=24)
     session.add(flight_deal)
     await session.commit()
 
@@ -53,13 +53,13 @@ async def is_flight_seen_recently(
     If a deal has failed MAX_ALERT_ATTEMPTS times without success,
     it is marked permanently failed and will not be retried.
     """
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
     query = (
         select(FlightDeal)
         .where(FlightDeal.route_id == route_id)
         .where(FlightDeal.seen_at >= cutoff)
-        .where(FlightDeal.expired_at > datetime.utcnow())
+        .where(FlightDeal.expired_at > datetime.now(timezone.utc))
         .limit(1)
     )
 
@@ -89,7 +89,7 @@ async def is_flight_seen_recently(
             f"Deal {deal.id} has {failed_count} failed alert attempts; "
             "marking permanently failed, will not retry"
         )
-        deal.expired_at = datetime.utcnow()
+        deal.expired_at = datetime.now(timezone.utc)
         session.add(deal)
         await session.commit()
         return True
@@ -104,7 +104,7 @@ async def cleanup_expired_deals(
     session: AsyncSession,
 ) -> int:
     """Clean up expired flight deals from database."""
-    query = select(FlightDeal).where(FlightDeal.expired_at < datetime.utcnow())
+    query = select(FlightDeal).where(FlightDeal.expired_at < datetime.now(timezone.utc))
     result = await session.execute(query)
     expired_deals = result.scalars().all()
 

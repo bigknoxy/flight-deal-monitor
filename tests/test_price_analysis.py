@@ -81,3 +81,34 @@ def test_route_type_unknown_airports():
         f"silently default to domestic for unknown airports. Got: {result}"
     )
 
+
+def test_route_type_one_known_one_unknown():
+    """Test that get_route_type does not silently default to 'domestic'
+    when one airport is known and the other is unknown.
+
+    When one airport is a non-US-known airport (e.g. SYD, CPT) and the
+    other is a US airport (K-prefixed), the route type should NOT be
+    'domestic' — it should reflect the actual mix of regions.
+    """
+    from app.utils.price_analysis import get_route_type
+
+    # SYD (Australia) is unknown, KMIA (US) is known via K-prefix
+    result = get_route_type("SYD", "KMIA")
+    assert result != "domestic", (
+        f"get_route_type('SYD', 'KMIA') returned 'domestic' but should not "
+        f"silently default to domestic for mixed-region routes. Got: {result}"
+    )
+
+    # JFK (US) with SYD (Australia) — should not default to domestic
+    result = get_route_type("JFK", "SYD")
+    assert result != "domestic", (
+        f"get_route_type('JFK', 'SYD') returned 'domestic' but should not "
+        f"silently default to domestic for mixed-region routes. Got: {result}"
+    )
+
+    # LHR (UK) with SYD (Australia) — should not default to domestic
+    result = get_route_type("LHR", "SYD")
+    assert result != "domestic", (
+        f"get_route_type('LHR', 'SYD') returned 'domestic' but should not "
+        f"silently default to domestic for mixed-region routes. Got: {result}"
+    )
