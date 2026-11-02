@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import yaml
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -61,7 +61,7 @@ async def _get_deals(
             func.min(FlightDeal.deal_type).label("deal_type"),
             func.min(FlightDeal.flight_numbers).label("flight_numbers"),
             func.count().label("option_count"),
-        ).where(FlightDeal.expired_at > datetime.utcnow())
+        ).where(FlightDeal.expired_at > datetime.now(timezone.utc))
 
         if deal_type:
             query = query.where(FlightDeal.deal_type == deal_type)
@@ -237,7 +237,7 @@ async def _get_detection_status() -> dict:
 
     home_airports = config.app.home_airports
     destinations = config.app.destinations
-    stale_since = datetime.utcnow() - timedelta(days=stale_route_days)
+    stale_since = datetime.now(timezone.utc) - timedelta(days=stale_route_days)
 
     routes_with_zero_deals: list[str] = []
     async with AsyncSessionLocal() as session:

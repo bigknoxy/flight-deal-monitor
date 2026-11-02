@@ -119,7 +119,7 @@ class AppConfig(BaseSettings):
     # When fli (the free source) errors, fall back to paid providers.
     # Disabled by default to avoid burning paid quota on transient fli hiccups;
     # only genuine emptiness (no results) is considered a real miss.
-    fallback_on_fli_error: bool = False
+    fallback_on_fli_error: bool = True
 
     fli_site_packages: str = ""
 

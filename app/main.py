@@ -4,7 +4,7 @@ import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -174,7 +174,7 @@ async def health() -> HealthResponse:
 
     if healthy:
         try:
-            cutoff = datetime.utcnow() - timedelta(
+            cutoff = datetime.now(timezone.utc) - timedelta(
                 seconds=3600  # mirrors scheduler_jobs.RECONCILE_MAX_AGE_SECONDS
             )
             async with AsyncSessionLocal() as session:

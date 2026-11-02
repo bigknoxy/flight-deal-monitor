@@ -63,3 +63,52 @@ def test_generate_route_id():
     assert route_id_1 == route_id_2
     assert route_id_1 != route_id_3
     assert len(route_id_1) == 16
+
+def test_route_type_unknown_airports():
+    """Test that unknown airports outside known sets don't silently default to domestic.
+    
+    SYD (Sydney, Australia) and CPT (Cape Town, South Africa) are not in any
+    of the hardcoded sets, so get_route_type should not silently return
+    'domestic' — it should be explicit about unknown regions.
+    """
+    from app.utils.price_analysis import get_route_type
+    
+    # SYD and CPT are both outside US/EU/Asia/LatAm sets
+    result = get_route_type("SYD", "CPT")
+    # Currently this silently returns "domestic" — the bug
+    assert result != "domestic", (
+        f"get_route_type('SYD', 'CPT') returned 'domestic' but should not "
+        f"silently default to domestic for unknown airports. Got: {result}"
+    )
+
+
+def test_route_type_one_known_one_unknown():
+    """Test that get_route_type does not silently default to 'domestic'
+    when one airport is known and the other is unknown.
+
+    When one airport is a non-US-known airport (e.g. SYD, CPT) and the
+    other is a US airport (K-prefixed), the route type should NOT be
+    'domestic' — it should reflect the actual mix of regions.
+    """
+    from app.utils.price_analysis import get_route_type
+
+    # SYD (Australia) is unknown, KMIA (US) is known via K-prefix
+    result = get_route_type("SYD", "KMIA")
+    assert result != "domestic", (
+        f"get_route_type('SYD', 'KMIA') returned 'domestic' but should not "
+        f"silently default to domestic for mixed-region routes. Got: {result}"
+    )
+
+    # JFK (US) with SYD (Australia) — should not default to domestic
+    result = get_route_type("JFK", "SYD")
+    assert result != "domestic", (
+        f"get_route_type('JFK', 'SYD') returned 'domestic' but should not "
+        f"silently default to domestic for mixed-region routes. Got: {result}"
+    )
+
+    # LHR (UK) with SYD (Australia) — should not default to domestic
+    result = get_route_type("LHR", "SYD")
+    assert result != "domestic", (
+        f"get_route_type('LHR', 'SYD') returned 'domestic' but should not "
+        f"silently default to domestic for mixed-region routes. Got: {result}"
+    )

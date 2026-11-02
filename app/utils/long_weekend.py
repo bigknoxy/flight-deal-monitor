@@ -1,7 +1,7 @@
 """Long weekend date pair generation."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def get_long_weekend_date_pairs(
 
     Scans from today up to look_ahead_months out.
     """
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff = today + timedelta(days=look_ahead_months * 30)
     pairs: list[tuple[str, str]] = []
     seen: set[str] = set()

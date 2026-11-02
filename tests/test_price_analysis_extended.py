@@ -177,7 +177,9 @@ class TestGetRouteType:
         assert get_route_type("LHR", "CDG") == "europe"
 
     def test_get_route_type_fallback_domestic(self):
-        assert get_route_type("SYD", "JFK") == "domestic"
+        # SYD (Australia) is unknown, JFK (US) is known via K-prefix;
+        # with the fix, mixed-region routes should not silently default to "domestic"
+        assert get_route_type("SYD", "JFK") == "unknown"
 
 
 class TestApplyRouteMultiplier:

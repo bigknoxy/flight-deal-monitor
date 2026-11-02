@@ -8,7 +8,7 @@ FlightDeal rows already committed to the caller's session.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,7 +112,7 @@ async def _scan_route(
     )
     if cached_data is not None:
         _, seen_at = cached_data
-        age_minutes = (datetime.utcnow() - seen_at).total_seconds() / 60
+        age_minutes = (datetime.now(timezone.utc) - seen_at).total_seconds() / 60
         if age_minutes < config.app.cache_ttl_minutes:
             logger.info(
                 f"Skipping search for {origin}-{destination}-{departure_date}: "
@@ -219,7 +219,7 @@ async def _scan_route(
         session, origin, destination, departure_date,
         min_samples=config.app.min_baseline_samples,
         booking_window_bucket=booking_window_bucket(
-            (datetime.strptime(departure_date, "%Y-%m-%d") - datetime.utcnow()).days
+            (datetime.strptime(departure_date, "%Y-%m-%d") - datetime.now()).days
         ),
     )
 
