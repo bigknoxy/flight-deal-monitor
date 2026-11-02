@@ -39,13 +39,15 @@ def _ensure_fli_importable() -> None:
             PassengerInfo,
         )
         from fli.search import SearchFlights  # noqa: F401
-    except ImportError:
-        logger.warning(
-            "fli package not importable — flight searches will fail. "
-            "Ensure 'flights' is installed (pip install flights) or set "
-            "FLI_SITE_PACKAGES to the directory containing the fli package."
-        )
-        raise
+    except ImportError as e:
+        # Raise as FLISearchError so callers can distinguish "fli not available"
+        # from "no flights found". This prevents the phantom-dependency silent
+        # failure where the app appears healthy but produces zero deals.
+        raise FLISearchError(
+            f"fli package not importable — flight searches will fail. "
+            f"Ensure 'flights' is installed (pip install flights) or set "
+            f"FLI_SITE_PACKAGES to the directory containing the fli package."
+        ) from e
 
 
 def _run_fli_search(
