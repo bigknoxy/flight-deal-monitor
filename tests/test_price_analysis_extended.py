@@ -176,8 +176,11 @@ class TestGetRouteType:
     def test_get_route_type_reverse_fallback(self):
         assert get_route_type("LHR", "CDG") == "europe"
 
-    def test_get_route_type_fallback_domestic(self):
-        assert get_route_type("SYD", "JFK") == "domestic"
+    def test_get_route_type_fallback_unknown(self):
+        # SYD (Australia) and JFK (US) - one known, one unknown, should return "unknown"
+        # not silently default to "domestic"
+        assert get_route_type("SYD", "JFK") == "unknown"
+        assert get_route_type("JFK", "SYD") == "unknown"
 
 
 class TestApplyRouteMultiplier:
