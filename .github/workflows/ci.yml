@@ -61,7 +61,7 @@ jobs:
         id: go-check
         run: |
           if [ -f go.mod ]; then echo "has_go=true" >> "$GITHUB_OUTPUT"; else echo "No go.mod found, skipping Go test."; exit 0; fi
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         if: steps.go-check.outputs.has_go == 'true'
         with:
           go-version: '1.25'
