@@ -131,6 +131,7 @@ async def run_regular_sweep() -> None:
     logger.info("Starting regular flight price sweep")
     job_run = await _start_job_run("regular_sweep")
     semaphore = asyncio.Semaphore(config.app.max_concurrent_scans)
+    batch_size = 10  # Process 10 routes at a time to avoid unbounded duration
 
     async def _scan_route_wrapper(
         session: AsyncSession,
@@ -155,7 +156,10 @@ async def run_regular_sweep() -> None:
                                 _scan_route_wrapper(session, origin, destination, departure_date)
                             )
                         )
-            await _run_concurrent_sweep("regular_sweep", tasks, job_run)
+            # Process in batches to avoid unbounded duration
+            for i in range(0, len(tasks), batch_size):
+                batch = tasks[i : i + batch_size]
+                await _run_concurrent_sweep(f"regular_sweep_batch_{i // batch_size}", batch, job_run)
     except Exception as e:
         logger.error(f"Regular sweep failed: {e}")
         await telegram_bot.send_error_alert(f"Regular sweep failed: {e}")
@@ -167,6 +171,7 @@ async def run_mistake_sweep() -> None:
     logger.info("Starting mistake fare sweep")
     job_run = await _start_job_run("mistake_sweep")
     semaphore = asyncio.Semaphore(config.app.max_concurrent_scans)
+    batch_size = 10  # Process 10 routes at a time to avoid unbounded duration
 
     async def _scan_route_wrapper(
         session: AsyncSession,
@@ -194,7 +199,10 @@ async def run_mistake_sweep() -> None:
                                 _scan_route_wrapper(session, origin, destination, departure_date)
                             )
                         )
-            await _run_concurrent_sweep("mistake_sweep", tasks, job_run)
+            # Process in batches to avoid unbounded duration
+            for i in range(0, len(tasks), batch_size):
+                batch = tasks[i : i + batch_size]
+                await _run_concurrent_sweep(f"mistake_sweep_batch_{i // batch_size}", batch, job_run)
     except Exception as e:
         logger.error(f"Mistake fare sweep failed: {e}")
         await telegram_bot.send_error_alert(f"Mistake fare sweep failed: {e}")
